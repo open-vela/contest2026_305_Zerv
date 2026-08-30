@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.history
+*.log
+.env
+.env.local
+.mimocode/
+.reasonix/
+.vscode/settings.json
+reasonix.toml

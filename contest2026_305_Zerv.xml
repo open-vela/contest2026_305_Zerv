@@ -9,8 +9,6 @@
   <include name="openvela.xml"/>
 
   <project path="contest2026_305_Zerv" name="contest2026_305_Zerv">
-    <linkfile src="app/hello_app" dest="packages/demos/contest2026_305_hello_app"/>
-    <linkfile src="quickapp/hello_quickapp" dest="packages/apps/contest2026_305_hello_quickapp"/>
-    <linkfile src="board/contest_board" dest="vendor/openvela/boards/contest2026_305_board"/>
+    <linkfile src="quickapp/maixiang" dest="packages/apps/contest2026_305_maixiang"/>
   </project>
 </manifest>

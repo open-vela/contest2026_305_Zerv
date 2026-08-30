@@ -1,0 +1,18 @@
+# Dependencies and generated artifacts
+node_modules/
+build/
+out/
+dist/
+*.o
+*.a
+*.elf
+*.hex
+*.map
+
+# Local IDE and temporary state
+.vscode/
+.reasonix/
+.mimocode/
+.temp_*/
+
+# Never ignore logs/: official AI Coding logs must be committed.

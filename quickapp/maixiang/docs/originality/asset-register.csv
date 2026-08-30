@@ -1,0 +1,11 @@
+文件或内容,类型,来源或生成方式,作者或工具,许可/参赛使用依据,原始记录位置,状态
+src/common/maixiang/Bg.png,图片,AI生成后裁剪调色,Google Gemini + 团队处理,随项目按 Apache-2.0 提供,待团队补充生成记录,待确认原始记录
+src/common/maixiang/Mbg.png,图片,AI生成后裁剪调色,Google Gemini + 团队处理,随项目按 Apache-2.0 提供,待团队补充生成记录,待确认原始记录
+src/common/maixiang/list.png,图片,AI生成后裁剪调色,Google Gemini + 团队处理,随项目按 Apache-2.0 提供,待团队补充生成记录,待确认原始记录
+src/common/maixiang/list1.png,图片,AI生成后裁剪调色,Google Gemini + 团队处理,随项目按 Apache-2.0 提供,待团队补充生成记录,待确认原始记录
+src/common/maixiang/first.png,图片,AI生成后裁剪调色,Google Gemini + 团队处理,随项目按 Apache-2.0 提供,待团队补充生成记录,待确认原始记录
+src/common/maixiang/icon.png,图片,AI生成后团队处理,Google Gemini + 团队处理,随项目按 Apache-2.0 提供,待团队补充生成记录,待确认原始记录
+src/common/maixiang/radar_grid5.png,程序生成图片,tools/gen_radar_grid.js,项目团队,Apache-2.0,tools/gen_radar_grid.js,已核对
+src/common/maixiang/radar_grid6.png,程序生成图片,tools/gen_radar_grid.js,项目团队,Apache-2.0,tools/gen_radar_grid.js,已核对
+工程脚手架,代码结构,openvela 快应用官方示例,openvela/Xiaomi Vela,Apache-2.0,NOTICE,已声明
+传统脉学引文,古籍文本,黄帝内经/难经/脉经/濒湖脉学,公有领域古籍,仅引用古籍原文；现代译写由团队负责,src/utils/strings.js,需逐条核对版本

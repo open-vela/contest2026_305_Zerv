@@ -1,0 +1,229 @@
+<template>
+  <stack class="root">
+    <!-- 无数据空态：不展示演示分值 -->
+    <div class="empty" if="{{ !hasData }}">
+      <image class="bg" src="/common/maixiang/list1.png"></image>
+      <text class="empty-t1">暂无脉象数据</text>
+      <text class="empty-t2">请先完成一次把脉</text>
+    </div>
+
+    <swiper class="swiper" if="{{ hasData }}" vertical="true" loop="false" indicator="true" @change="onChange">
+      <div class="screen" for="{{ (i, item) in organs }}" tid="i">
+        <image class="bg" src="/common/maixiang/list1.png"></image>
+
+        <!-- 顶部全宽弧形进度（原版 ringSize = W-10，200°→340° 顶弧） -->
+        <stack class="arc-box">
+          <progress class="arc-bg" type="arc" percent="100"></progress>
+          <progress class="arc-fg" type="arc" percent="{{ item.pct }}" style="color: {{ item.gauge }};"></progress>
+        </stack>
+
+        <text class="organ-name">{{ item.name }}</text>
+        <text class="organ-score" style="color: {{ item.gauge }};">{{ item.scoreText }}</text>
+
+        <div class="card">
+          <text class="card-title" style="color: {{ item.tint }};">{{ item.name }} · {{ item.status }}</text>
+          <div class="sep"></div>
+          <text class="card-desc">{{ item.desc }}</text>
+        </div>
+      </div>
+    </swiper>
+  </stack>
+</template>
+
+<script>
+import { getText } from '../../utils/strings'
+
+// 布局基准数据；页面仅在有真实测量后的规则结果时展示
+const DEMO = [
+  { key: 'heart',  score: 8.5, status: 'he',   tint: '#C04040' },
+  { key: 'liver',  score: 6.0, status: 'ping', tint: '#6B8E23' },
+  { key: 'spleen', score: 5.5, status: 'ping', tint: '#B8860B' },
+  { key: 'lung',   score: 7.5, status: 'he',   tint: '#5C8C9C' },
+  { key: 'kidney', score: 4.0, status: 'xu',   tint: '#6A5ACD' },
+];
+
+function gaugeColor(score) {
+  if (score >= 7) return '#C09040';
+  if (score >= 5) return '#B8860B';
+  if (score >= 3) return '#B5651D';
+  return '#A23B2E';
+}
+
+// 分值 → 关联等级键（与规则引擎 analyzeOrgans 阈值一致）
+function statusKeyOf(score) {
+  if (score >= 7) return 'he';
+  if (score >= 5) return 'ping';
+  if (score >= 3) return 'xu';
+  return 'kui';
+}
+
+export default {
+  private: {
+    organs: [],
+    hasData: false
+  },
+
+  onInit() {
+    const diag = this.$app.$def.globalData.lastDiagnosis;
+    const real = diag && diag.organAnalysis ? diag.organAnalysis : null;
+    this._animated = {};
+    this._timer = null;
+    this._delayTimer = null;
+
+    // 无真实规则结果：显示空态，不用演示分值糊弄用户
+    this.hasData = !!(real && real.length > 0);
+    if (!this.hasData) return;
+
+    this.organs = DEMO.map((d, i) => {
+      let score = d.score, statusKey = d.status;
+      if (real && real[i]) {
+        score = real[i].score || 0;
+        statusKey = statusKeyOf(score);
+      }
+      return {
+        name: getText('organ_name_' + d.key),
+        scoreText: score.toFixed(1),
+        target: Math.round((score / 10) * 100),
+        pct: 0,
+        status: getText('organ_status_' + statusKey),
+        tint: d.tint,
+        gauge: gaugeColor(score),
+        desc: getText('organ_desc_' + d.key + '_' + statusKey)
+      };
+    });
+  },
+
+  onShow() {
+    this._scheduleAnimate(0, 80);
+  },
+
+  onDestroy() {
+    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    if (this._delayTimer) { clearTimeout(this._delayTimer); this._delayTimer = null; }
+  },
+
+  onChange(e) {
+    this._scheduleAnimate(e.index, 180);
+  },
+
+  _scheduleAnimate(idx, delay) {
+    if (this._delayTimer) clearTimeout(this._delayTimer);
+    this._delayTimer = setTimeout(() => {
+      this._delayTimer = null;
+      this._animate(idx);
+    }, delay);
+  },
+
+  // 固定关键帧；避开 swiper 位移动画并降低整页重绘频率
+  _animate(idx) {
+    if (idx == null || idx < 0 || idx >= this.organs.length) return;
+    if (this._animated[idx]) return;
+    this._animated[idx] = true;
+
+    const target = this.organs[idx].target;
+    const frames = [0.20, 0.38, 0.54, 0.67, 0.78, 0.86, 0.92, 0.96, 0.99, 1];
+    let frame = 0;
+    if (this._timer) clearInterval(this._timer);
+    this._timer = setInterval(() => {
+      const list = this.organs.slice();
+      const item = {};
+      const source = list[idx];
+      Object.keys(source).forEach((key) => { item[key] = source[key]; });
+      item.pct = Math.round(target * frames[frame]);
+      list[idx] = item;
+      this.organs = list;
+      frame++;
+      if (frame >= frames.length) {
+        clearInterval(this._timer);
+        this._timer = null;
+      }
+    }, 48);
+  }
+}
+</script>
+
+<style>
+.swiper {
+  width: 100%;
+  height: 100%;
+  indicator-selected-color: #D4A574;
+  indicator-color: #4A3728;
+  indicator-size: 9px;
+}
+
+.screen {
+  width: 100%;
+  height: 100%;
+  background-color: #E8DCBE;
+}
+
+.bg {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 480px;
+  height: 480px;
+}
+
+/* 全宽顶弧（对齐原版 ringSize=W-10, y=12, 线宽 20） */
+.arc-box {
+  position: absolute;
+  left: 5px;
+  top: 12px;
+  width: 470px;
+  height: 470px;
+}
+
+.arc-bg { width: 470px; height: 470px; color: #B6A98C; stroke-width: 20px; start-angle: 290deg; total-angle: 140deg; }
+.arc-fg { width: 470px; height: 470px; stroke-width: 20px; start-angle: 290deg; total-angle: 140deg; }
+
+/* 原版坐标：脏名 y92 / 分值 y154 / 卡片 y244 */
+.organ-name {
+  position: absolute;
+  left: 0px;
+  top: 92px;
+  width: 480px;
+  text-align: center;
+  font-size: 35px;
+  color: #8A5A20;
+}
+
+.organ-score {
+  position: absolute;
+  left: 0px;
+  top: 140px;
+  width: 480px;
+  text-align: center;
+  font-size: 75px;
+}
+
+.card {
+  position: absolute;
+  left: 65px;
+  top: 244px;
+  width: 350px;
+  background-color: #D8CCB2;
+  border-radius: 24px;
+  flex-direction: column;
+  padding: 16px 20px 18px 20px;
+}
+
+.card-title { font-size: 28px; }
+.sep { width: 100%; height: 2px; background-color: #C4B594; margin-top: 12px; margin-bottom: 14px; }
+/* 文案本身按两行阅读量精简，完整显示，不做省略截断 */
+.card-desc { width: 310px; font-size: 26px; color: #5A4632; }
+
+.root { width: 100%; height: 100%; }
+
+.empty {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #E8DCBE;
+}
+
+.empty-t1 { font-size: 34px; color: #8A5A20; }
+.empty-t2 { font-size: 26px; color: #7A6A50; margin-top: 14px; }
+</style>

@@ -1,0 +1,41 @@
+<template>
+  <!-- Vela 4.0 安全脉形：单张预渲染透明图，无 chart/canvas/动态 transform -->
+  <div class="wave-box">
+    <image class="wave-image" src="{{ waveSrc }}"></image>
+  </div>
+</template>
+
+<script>
+const PULSE_TYPES = [
+  'fu', 'chen', 'chi', 'shuo', 'hua', 'se', 'xu', 'shi',
+  'xian', 'xi', 'hong', 'huan', 'jie', 'dai', 'flat'
+]
+
+export default {
+  props: ['pulse'],
+
+  data() {
+    return {
+      waveSrc: '/common/maixiang/waves/flat.png'
+    }
+  },
+
+  onInit() {
+    const type = PULSE_TYPES.indexOf(this.pulse) >= 0 ? this.pulse : 'flat'
+    this.waveSrc = '/common/maixiang/waves/' + type + '.png'
+    console.log('[PULSE-WAVE] image type=' + type)
+  }
+}
+</script>
+
+<style>
+.wave-box {
+  width: 344px;
+  height: 100px;
+}
+
+.wave-image {
+  width: 344px;
+  height: 100px;
+}
+</style>

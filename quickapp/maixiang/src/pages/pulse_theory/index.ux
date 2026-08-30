@@ -1,0 +1,295 @@
+<template>
+  <!-- 固定宣纸底（不随 Swiper 翻页移动，对齐原版视觉） -->
+  <stack class="root">
+    <image class="bgfix" src="/common/maixiang/list1.png"></image>
+    <swiper class="swiper" loop="false" indicator="true">
+    <!-- 屏1: 脉诊源流 -->
+    <scroll class="screen" scroll-y="true">
+      <div class="col">
+        <!-- 免责声明（独立醒目卡：暖色底 + 红褐警示标题 + 左饰条） -->
+        <div class="card warn-card">
+          <div class="warn-bar"></div>
+          <div class="card-body">
+            <text class="warn-title">免责声明</text>
+            <text class="warn-text">{{ t.disclaimer }}</text>
+          </div>
+        </div>
+
+        <div class="card col">
+          <text class="h1">{{ t.title }}</text>
+          <text class="italic">{{ t.subtitle }}</text>
+        </div>
+
+        <div class="card col">
+          <text class="quote">{{ t.quote }}</text>
+          <text class="quote-author">{{ t.quoteAuthor }}</text>
+          <div class="hr"></div>
+          <text class="trans">{{ t.quoteTrans }}</text>
+        </div>
+
+        <div class="card col">
+          <text class="h2">{{ t.originTitle }}</text>
+          <text class="bold">{{ t.originBody }}</text>
+          <text class="h3">{{ t.booksTitle }}</text>
+          <text class="li" for="{{ (i, b) in t.books }}" tid="i">· {{ b }}</text>
+          <text class="verse">{{ t.verse }}</text>
+        </div>
+
+        <div class="card col">
+          <text class="h2">{{ t.cunkouTitle }}</text>
+          <text class="quote">{{ t.cunkouBody }}</text>
+          <div class="hr"></div>
+          <text class="trans">{{ t.cunkouTrans }}</text>
+          <text class="italic">—— 脉理精微，存乎一心</text>
+        </div>
+        <div class="pad-bottom"></div>
+      </div>
+    </scroll>
+
+    <!-- 屏2: 二十八脉述要（14 脉一脉一卡） -->
+    <scroll class="screen" scroll-y="true">
+      <div class="col">
+        <div class="card pulse-card" for="{{ (i, p) in pulses }}" tid="i">
+          <div class="pulse-head">
+            <text class="pulse-name">{{ p.name }}</text>
+            <text class="pulse-nature">{{ p.nature }}</text>
+          </div>
+          <div class="gold-sep"></div>
+          <text class="pulse-desc">{{ p.desc }}</text>
+        </div>
+        <div class="pad-bottom"></div>
+      </div>
+    </scroll>
+
+    <!-- 屏3: 脉象与健康指南 -->
+    <scroll class="screen" scroll-y="true">
+      <div class="col">
+        <div class="card col">
+          <text class="h1">{{ t.guideTitle }}</text>
+          <text class="body-text">{{ t.normalPulse }}</text>
+          <text class="quote">{{ t.santi }}</text>
+          <text class="quote-author">{{ t.santiSource }}</text>
+          <div class="hr"></div>
+          <text class="trans">{{ t.normalTrans }}</text>
+        </div>
+
+        <div class="card col">
+          <text class="h2">{{ t.factorsTitle }}</text>
+          <text class="li" for="{{ (i, f) in t.factors }}" tid="i">· {{ f }}</text>
+          <div class="hr"></div>
+          <text class="h3">{{ t.tipTitle }}</text>
+          <text class="trans">{{ t.tip }}</text>
+        </div>
+        <div class="pad-bottom"></div>
+      </div>
+    </scroll>
+    </swiper>
+    <!-- 顶部时间（浮层，不随翻页） -->
+    <div class="clock-layer">
+      <div class="arc-clock">
+        <text class="clock-char clock-1">{{ clockChars[0] }}</text>
+        <text class="clock-char clock-2">{{ clockChars[1] }}</text>
+        <text class="clock-char clock-3">{{ clockChars[2] }}</text>
+        <text class="clock-char clock-4">{{ clockChars[3] }}</text>
+        <text class="clock-char clock-5">{{ clockChars[4] }}</text>
+      </div>
+    </div>
+  </stack>
+</template>
+
+<script>
+import { getText } from '../../utils/strings'
+
+const PULSE_KEYS = ['fu', 'chen', 'chi', 'shuo', 'hua', 'se', 'xu', 'shi', 'xian', 'xi', 'hong', 'huan', 'jie', 'dai'];
+const PULSE_NATURE = {
+  fu: '阳', chen: '阴', chi: '阴', shuo: '阳', hua: '阳', se: '阴',
+  xu: '阴', shi: '阳', xian: '阳', xi: '阴', hong: '阳',
+  huan: '平', jie: '阴', dai: '阴'
+};
+
+export default {
+  private: {
+    t: {},
+    pulses: [],
+    clockChars: ['-', '-', ':', '-', '-'],
+  },
+
+  onInit() {
+    this._clockTimer = null;
+    this._startClock();
+    this.t = {
+      disclaimer: getText('pulse_theory_disclaimer'),
+      title: getText('pulse_theory'),
+      subtitle: getText('pulse_theory_subtitle'),
+      quote: getText('pulse_theory_quote'),
+      quoteAuthor: getText('pulse_theory_quote_author'),
+      quoteTrans: getText('pulse_theory_quote_trans'),
+      originTitle: getText('pulse_theory_origin_title'),
+      originBody: getText('pulse_theory_origin_body'),
+      booksTitle: getText('pulse_theory_books_title'),
+      books: [
+        getText('pulse_theory_book_neijing'),
+        getText('pulse_theory_book_nanjing'),
+        getText('pulse_theory_book_maijing'),
+        getText('pulse_theory_book_binhu'),
+      ],
+      cunkouTitle: getText('pulse_theory_cunkou_title'),
+      verse: '浮脉惟从肉上行，\n沉脉轻取不得寻。\n数脉一息六七至，\n迟脉一息不足三。',
+      cunkouBody: getText('pulse_theory_cunkou_body'),
+      cunkouTrans: getText('pulse_theory_cunkou_trans'),
+      guideTitle: getText('pulse_theory_guide_title'),
+      normalPulse: getText('pulse_theory_normal_pulse'),
+      normalTrans: getText('pulse_theory_normal_trans'),
+      santi: getText('pulse_theory_santi'),
+      santiSource: getText('pulse_theory_santi_source'),
+      factorsTitle: getText('pulse_theory_factors_title'),
+      factors: [
+        getText('pulse_theory_factor_emotion'),
+        getText('pulse_theory_factor_exercise'),
+        getText('pulse_theory_factor_diet'),
+        getText('pulse_theory_factor_sleep'),
+      ],
+      tipTitle: getText('pulse_theory_reading_tip_title'),
+      tip: getText('pulse_theory_reading_tip'),
+    };
+
+    this.pulses = PULSE_KEYS.map((key) => ({
+      name: getText('pulse_name_' + key),
+      desc: getText('pulse_desc_' + key),
+      nature: (PULSE_NATURE[key] || '') + '脉'
+    }));
+  },
+
+  onShow() {
+    this._startClock();
+  },
+
+  onHide() {
+    this._stopClock();
+  },
+
+  onDestroy() {
+    this._stopClock();
+  },
+
+  _startClock() {
+    const tick = () => {
+      const now = new Date();
+      const time = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+      this.clockChars = time.split('');
+    };
+    tick();
+    if (!this._clockTimer) this._clockTimer = setInterval(tick, 10000);
+  },
+
+  _stopClock() {
+    if (this._clockTimer) {
+      clearInterval(this._clockTimer);
+      this._clockTimer = null;
+    }
+  }
+}
+</script>
+
+<style>
+.root {
+  width: 100%;
+  height: 100%;
+}
+
+.bgfix {
+  width: 480px;
+  height: 480px;
+}
+
+.clock-layer {
+  position: absolute;
+  left: 0px;
+  /* 圆形屏幕顶部有安全裁切区，时间下移后保留完整字形高度 */
+  top: 14px;
+  width: 480px;
+  height: 44px;
+}
+
+.swiper {
+  width: 100%;
+  height: 100%;
+  indicator-selected-color: #C0A050;
+  indicator-color: #9E9276;
+  indicator-size: 12px;
+}
+
+.screen {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.arc-clock {
+  width: 480px;
+  height: 44px;
+  position: relative;
+  top: 0px;
+  justify-content: center;
+}
+
+.clock-char { width: 22px; height: 42px; text-align: center; font-size: 30px; font-weight: bold; color: rgba(110, 91, 65, 0.72); transform-origin: 11px 21px; }
+.clock-1 { top: 4px; transform: rotate(-10deg); }
+.clock-2 { top: 1px; transform: rotate(-5deg); }
+.clock-3 { top: -3px; }
+.clock-4 { top: 1px; transform: rotate(5deg); }
+.clock-5 { top: 4px; transform: rotate(10deg); }
+
+.col {
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 84px 38px 20px 38px;
+}
+
+.card {
+  width: 404px;
+  background-color: #D8CCB2;
+  border-radius: 22px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+
+.pad-bottom { height: 60px; }
+
+/* 标题层级配色（古风：深金 h1 / 青黛 h2 / 中金 h3） */
+.h1 { font-size: 32px; color: #8A5A20; margin-bottom: 8px; }
+.h2 { font-size: 28px; color: #4E7A88; margin-bottom: 8px; }
+.h3 { font-size: 25px; color: #B8860B; margin-top: 12px; margin-bottom: 6px; }
+.bold { font-size: 22px; color: #5A4632; font-weight: bold; }
+.italic { font-size: 22px; color: #8A6E4E; }
+.body-text { font-size: 22px; color: #5A4632; margin-bottom: 8px; }
+.li { font-size: 22px; color: #5A4632; margin-top: 4px; }
+.quote { font-size: 22px; color: #8A6E4E; font-weight: bold; margin-top: 6px; }
+.quote-author { font-size: 20px; color: #8A6E4E; margin-top: 4px; }
+.trans { font-size: 22px; color: #5A4632; margin-top: 6px; }
+.verse {
+  font-size: 22px;
+  color: #5A4632;
+  background-color: #CBBD9C;
+  border-radius: 10px;
+  padding: 12px;
+  margin-top: 12px;
+}
+.hr { width: 100%; height: 2px; background-color: #C4B594; margin-top: 12px; margin-bottom: 10px; }
+
+/* 免责声明卡 */
+.warn-card { background-color: #CBB489; }
+.warn-bar { width: 6px; border-radius: 3px; background-color: #9A3B2E; margin-right: 16px; }
+.card-body { flex-direction: column; flex: 1; }
+.warn-title { font-size: 26px; color: #9A3B2E; margin-bottom: 8px; }
+.warn-text { font-size: 22px; color: #4A3628; }
+
+/* 屏2: 脉象卡 */
+.pulse-card { flex-direction: column; }
+.pulse-head { width: 100%; justify-content: space-between; align-items: center; }
+.pulse-name { font-size: 36px; color: #8A5A20; }
+.pulse-nature { font-size: 20px; color: #8A6E4E; }
+.gold-sep { width: 100%; height: 2px; background-color: #C0A050; margin-top: 10px; margin-bottom: 12px; }
+.pulse-desc { font-size: 23px; color: #5A4632; }
+</style>

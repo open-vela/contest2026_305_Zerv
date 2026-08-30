@@ -1,0 +1,234 @@
+<template>
+  <stack class="root">
+    <!-- 无数据空态：不展示演示分值 -->
+    <div class="empty" if="{{ !hasData }}">
+      <image class="bg" src="/common/maixiang/list1.png"></image>
+      <text class="empty-t1">暂无脉象数据</text>
+      <text class="empty-t2">请先完成一次把脉</text>
+    </div>
+
+    <swiper class="swiper" if="{{ hasData }}" vertical="true" loop="false" indicator="true" @change="onChange">
+      <div class="screen" for="{{ (i, item) in dims }}" tid="i">
+        <image class="bg" src="/common/maixiang/list1.png"></image>
+
+        <!-- 顶部全宽弧形进度（原版 ringSize = W-10，200°→340° 顶弧） -->
+        <stack class="arc-box">
+          <progress class="arc-bg" type="arc" percent="100"></progress>
+          <progress class="arc-fg" type="arc" percent="{{ item.pct }}" style="color: {{ item.gauge }};"></progress>
+        </stack>
+
+        <text class="dim-name">{{ item.name }}</text>
+        <text class="dim-score" style="color: {{ item.gauge }};">{{ item.scoreText }}</text>
+        <text class="dim-label">{{ item.label }}</text>
+
+        <div class="card">
+          <text class="card-title" style="color: {{ item.tint }};">{{ item.name }} · {{ item.label }}</text>
+          <div class="sep"></div>
+          <text class="card-desc">{{ item.desc }}</text>
+        </div>
+      </div>
+    </swiper>
+  </stack>
+</template>
+
+<script>
+import { getText } from '../../utils/strings'
+
+// 布局基准数据；页面仅在有真实测量后的规则结果时展示
+const DEMO = [
+  { key: 'rate',     score: 7.5, labelKey: 'dim_label_rate_zhong',        tint: '#C09040' },
+  { key: 'rhythm',   score: 6.0, labelKey: 'dim_label_rhythm_ke',         tint: '#5C8C9C' },
+  { key: 'strength', score: 5.5, labelKey: 'dim_label_ping',              tint: '#B8860B' },
+  { key: 'width',    score: 6.5, labelKey: 'dim_label_ping',              tint: '#C09040' },
+  { key: 'tension',  score: 4.0, labelKey: 'dim_label_tension_pian_xian', tint: '#8B4513' },
+  { key: 'rsa',      score: 7.0, labelKey: 'dim_label_rsa_normal',        tint: '#5C8C9C' },
+];
+
+function gaugeColor(score) {
+  if (score >= 7) return '#C09040';
+  if (score >= 5) return '#B8860B';
+  if (score >= 3) return '#B5651D';
+  return '#A23B2E';
+}
+
+export default {
+  private: {
+    dims: [],
+    hasData: false
+  },
+
+  onInit() {
+    const diag = this.$app.$def.globalData.lastDiagnosis;
+    this._animated = {};
+    this._timer = null;
+    this._delayTimer = null;
+
+    // 无真实规则结果：显示空态，不用演示分值糊弄用户
+    this.hasData = !!(diag && diag.dimensions);
+    if (!this.hasData) return;
+
+    this.dims = DEMO.map((d) => {
+      let score = d.score, label = getText(d.labelKey);
+      if (diag && diag.dimensions && diag.dimensions[d.key]) {
+        const rd = diag.dimensions[d.key];
+        score = +((rd.score / 9) * 10).toFixed(1); // 0~9 → 0~10 展示
+        label = rd.label || label;
+      }
+      return {
+        name: getText('dim_' + d.key),
+        scoreText: score.toFixed(1),
+        target: Math.round((score / 10) * 100),
+        pct: 0,
+        label,
+        tint: d.tint,
+        gauge: gaugeColor(score),
+        desc: getText('dim_desc_' + d.key)
+      };
+    });
+  },
+
+  onShow() {
+    this._scheduleAnimate(0, 80);
+  },
+
+  onDestroy() {
+    if (this._timer) { clearInterval(this._timer); this._timer = null; }
+    if (this._delayTimer) { clearTimeout(this._delayTimer); this._delayTimer = null; }
+  },
+
+  onChange(e) {
+    // 等 swiper 位移动画结束后再画圆弧，避免两种动画争抢 UI 线程
+    this._scheduleAnimate(e.index, 180);
+  },
+
+  _scheduleAnimate(idx, delay) {
+    if (this._delayTimer) clearTimeout(this._delayTimer);
+    this._delayTimer = setTimeout(() => {
+      this._delayTimer = null;
+      this._animate(idx);
+    }, delay);
+  },
+
+  // 固定关键帧动画：减少数组重绑定和整页重绘次数，每页只播放一次
+  _animate(idx) {
+    if (idx == null || idx < 0 || idx >= this.dims.length) return;
+    if (this._animated[idx]) return;
+    this._animated[idx] = true;
+
+    const target = this.dims[idx].target;
+    const frames = [0.20, 0.38, 0.54, 0.67, 0.78, 0.86, 0.92, 0.96, 0.99, 1];
+    let frame = 0;
+    if (this._timer) clearInterval(this._timer);
+    this._timer = setInterval(() => {
+      const list = this.dims.slice();
+      const item = {};
+      const source = list[idx];
+      Object.keys(source).forEach((key) => { item[key] = source[key]; });
+      item.pct = Math.round(target * frames[frame]);
+      list[idx] = item;
+      this.dims = list;
+      frame++;
+      if (frame >= frames.length) {
+        clearInterval(this._timer);
+        this._timer = null;
+      }
+    }, 48);
+  }
+}
+</script>
+
+<style>
+.swiper {
+  width: 100%;
+  height: 100%;
+  indicator-selected-color: #D4A574;
+  indicator-color: #4A3728;
+  indicator-size: 9px;
+}
+
+.screen {
+  width: 100%;
+  height: 100%;
+  background-color: #E8DCBE;
+}
+
+.bg {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 480px;
+  height: 480px;
+}
+
+/* 全宽顶弧（对齐原版 ringSize=W-10, y=12, 线宽 20） */
+.arc-box {
+  position: absolute;
+  left: 5px;
+  top: 12px;
+  width: 470px;
+  height: 470px;
+}
+
+.arc-bg { width: 470px; height: 470px; color: #B6A98C; stroke-width: 20px; start-angle: 290deg; total-angle: 140deg; }
+.arc-fg { width: 470px; height: 470px; stroke-width: 20px; start-angle: 290deg; total-angle: 140deg; }
+
+/* 原版坐标：维度名 y72 / 分值 y112 / 分类 y200 / 卡片 y244 */
+.dim-name {
+  position: absolute;
+  left: 0px;
+  top: 72px;
+  width: 480px;
+  text-align: center;
+  font-size: 35px;
+  color: #8A5A20;
+}
+
+.dim-score {
+  position: absolute;
+  left: 0px;
+  top: 108px;
+  width: 480px;
+  text-align: center;
+  font-size: 75px;
+}
+
+.dim-label {
+  position: absolute;
+  left: 0px;
+  top: 200px;
+  width: 480px;
+  text-align: center;
+  font-size: 24px;
+  color: #7A6A50;
+}
+
+.card {
+  position: absolute;
+  left: 65px;
+  top: 244px;
+  width: 350px;
+  background-color: #D8CCB2;
+  border-radius: 24px;
+  flex-direction: column;
+  padding: 16px 20px 18px 20px;
+}
+
+.card-title { font-size: 28px; }
+.sep { width: 100%; height: 2px; background-color: #C4B594; margin-top: 12px; margin-bottom: 14px; }
+/* 文案本身按两行阅读量精简，完整自然换行，不做截断 */
+.card-desc { width: 310px; font-size: 26px; color: #5A4632; }
+
+.root { width: 100%; height: 100%; }
+
+.empty {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #E8DCBE;
+}
+
+.empty-t1 { font-size: 34px; color: #8A5A20; }
+.empty-t2 { font-size: 26px; color: #7A6A50; margin-top: 14px; }
+</style>
