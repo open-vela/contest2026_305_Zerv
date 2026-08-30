@@ -1,0 +1,181 @@
+<template>
+  <!-- 固定宣纸底（不随内容滚动，对齐原版 VIEW_CONTAINER 模式，避免平铺接缝） -->
+  <stack class="root">
+    <image class="bgfix" src="/common/maixiang/list1.png"></image>
+    <scroll class="scroll" scroll-y="true">
+      <div class="content">
+        <!-- 顶部时间 -->
+        <div class="arc-clock">
+          <text class="clock-char clock-1">{{ clockChars[0] }}</text>
+          <text class="clock-char clock-2">{{ clockChars[1] }}</text>
+          <text class="clock-char clock-3">{{ clockChars[2] }}</text>
+          <text class="clock-char clock-4">{{ clockChars[3] }}</text>
+          <text class="clock-char clock-5">{{ clockChars[4] }}</text>
+        </div>
+        <!-- 固定顶部标题：引子 + 主标题 + 金色饰线 -->
+        <text class="eyebrow">四时调养</text>
+        <text class="title">养生建议</text>
+        <div class="title-line"></div>
+
+        <div class="empty-card" if="{{ !hasData }}">
+          <text class="empty-title">暂无测量结果</text>
+          <text class="empty-text">请先完成一次测量，再查看对应的生活方式参考。</text>
+        </div>
+
+        <!-- 建议卡片（每类一张：金色左饰条 + 分类名 + 建议正文；
+             注：Vela 字库无 emoji 字形，标题不用 emoji） -->
+        <div class="card" if="{{ hasData }}" for="{{ (i, item) in recs }}" tid="i">
+          <div class="card-bar"></div>
+          <div class="card-body">
+            <text class="card-title">{{ item.category }}</text>
+            <text class="card-text">{{ item.advice }}</text>
+          </div>
+        </div>
+
+        <text class="disclaimer">本分析仅供参考，不构成医疗诊断</text>
+      </div>
+    </scroll>
+  </stack>
+</template>
+
+<script>
+export default {
+  private: {
+    recs: [],
+    hasData: false,
+    clockChars: ['-', '-', ':', '-', '-'],
+  },
+
+  onInit() {
+    this._clockTimer = null;
+    this._startClock();
+    // 只基于真实测量后的规则结果展示，不用默认文案伪装个性化结果
+    const diag = this.$app.$def.globalData.lastDiagnosis;
+    if (diag && diag.recommendations && diag.recommendations.length > 0) {
+      this.hasData = true;
+      this.recs = diag.recommendations.map((r) => ({
+        category: r.category,
+        advice: r.advice
+      }));
+    }
+  },
+
+  onShow() {
+    this._startClock();
+  },
+
+  onHide() {
+    this._stopClock();
+  },
+
+  onDestroy() {
+    this._stopClock();
+  },
+
+  _startClock() {
+    const tick = () => {
+      const now = new Date();
+      const time = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+      this.clockChars = time.split('');
+    };
+    tick();
+    if (!this._clockTimer) this._clockTimer = setInterval(tick, 10000);
+  },
+
+  _stopClock() {
+    if (this._clockTimer) {
+      clearInterval(this._clockTimer);
+      this._clockTimer = null;
+    }
+  }
+}
+</script>
+
+<style>
+.root {
+  width: 100%;
+  height: 100%;
+  background-color: #E8DCBE;
+}
+
+.bgfix {
+  width: 480px;
+  height: 480px;
+}
+
+.scroll {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.content {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px 45px 60px 45px;
+}
+
+.eyebrow { font-size: 20px; color: #9C8560; }
+
+.arc-clock {
+  width: 480px;
+  height: 44px;
+  position: relative;
+  top: -20px;
+  justify-content: center;
+}
+
+.clock-char { width: 22px; height: 42px; text-align: center; font-size: 30px; font-weight: bold; color: rgba(110, 91, 65, 0.72); transform-origin: 11px 21px; }
+.clock-1 { top: 4px; transform: rotate(-10deg); }
+.clock-2 { top: 1px; transform: rotate(-5deg); }
+.clock-3 { top: -3px; }
+.clock-4 { top: 1px; transform: rotate(5deg); }
+.clock-5 { top: 4px; transform: rotate(10deg); }
+.title { font-size: 36px; color: #8A5A20; margin-top: 4px; }
+.title-line {
+  width: 46px; height: 3px; border-radius: 2px;
+  background-color: #C0A050;
+  margin-top: 8px; margin-bottom: 22px;
+}
+
+.card {
+  width: 390px;
+  background-color: #D8CCB2;
+  border-radius: 22px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+
+.empty-card {
+  width: 390px;
+  flex-direction: column;
+  align-items: center;
+  background-color: #D8CCB2;
+  border-radius: 22px;
+  padding: 28px 24px;
+  margin-bottom: 20px;
+}
+
+.empty-title { font-size: 29px; color: #8A5A20; }
+.empty-text { width: 330px; margin-top: 12px; font-size: 23px; color: #5A4632; text-align: center; }
+
+.card-bar {
+  width: 6px;
+  border-radius: 3px;
+  background-color: #C0A050;
+  margin-right: 16px;
+}
+
+.card-body { flex-direction: column; flex: 1; }
+.card-title { font-size: 28px; color: #8A5A20; margin-bottom: 8px; }
+.card-text { font-size: 24px; color: #5A4632; }
+
+.disclaimer {
+  width: 360px;
+  text-align: center;
+  font-size: 20px;
+  color: #9C8560;
+  margin-top: 12px;
+}
+</style>

@@ -1,0 +1,423 @@
+<template>
+  <div class="page">
+    <image class="bg" src="/common/maixiang/Mbg.png"></image>
+    <div class="clock-slot">
+      <div class="arc-clock">
+        <text class="clock-char clock-1">{{ clockChars[0] }}</text>
+        <text class="clock-char clock-2">{{ clockChars[1] }}</text>
+        <text class="clock-char clock-3">{{ clockChars[2] }}</text>
+        <text class="clock-char clock-4">{{ clockChars[3] }}</text>
+        <text class="clock-char clock-5">{{ clockChars[4] }}</text>
+      </div>
+    </div>
+
+    <!-- 测量进度环：外圈表示有效采集进度，中心显示实时心率和倒计时 -->
+    <stack class="ring-box">
+      <progress class="ring-bg" type="arc" percent="100"></progress>
+      <progress class="ring-fg" type="arc" percent="{{ ringPercent }}"></progress>
+      <div class="ring-center">
+        <text class="bpm">{{ bpmText }}</text>
+        <text class="countdown">{{ countdownText }}</text>
+      </div>
+    </stack>
+
+    <text class="quality">{{ qualityText }}</text>
+    <text class="hint" if="{{ isMeasuring }}">{{ hintText }}</text>
+
+    <!-- 开始按钮 -->
+    <input type="button" class="btn-start" value="开始把脉" if="{{ !isMeasuring }}" onclick="start" />
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import brightness from '@system.brightness'
+import health from '@service.health'
+import { HRVCalculator, calcTcmMetrics, calcRsaEiRatio } from '../../utils/hrv_calc'
+import { HrvStorageManager } from '../../utils/hrv_storage_manager'
+
+const DURATION_SEC = 180;
+const SAMPLE_STALE_MS = 8000;
+const HR = health.DATA_TYPES.HEART_RATE;
+
+export default {
+  private: {
+    countdownText: '3:00',
+    ringPercent: 100,
+    bpmText: '-- BPM',
+    qualityText: '准备就绪',
+    hintText: '点击开始测量',
+    isMeasuring: false,
+    clockChars: ['-', '-', ':', '-', '-']
+  },
+
+  onInit() {
+    this._clockTimer = null;
+    this._startClock();
+    this._hrvCalc = new HRVCalculator();
+    this._hrvStorage = new HrvStorageManager();
+    this._hrvStorage.init(() => {});
+    this._countdownTimer = null;
+    this._receivedSampleCount = 0;
+    this._lastSampleAt = 0;
+    this._activeSeconds = 0;
+    this._sessionSeconds = 0;
+    this._measurementStarted = false;
+    this._latestSample = null;
+    this._lastConsumedTimestamp = 0;
+    this._healthSubscribed = false;
+    // 采集遵循 Vela 5.0 官方 health-demo 模式：
+    // subscribeSample 流式订阅在 onReady 一次性建立，贯穿页面生命周期，
+    // 仅在 onDestroy 退订；后台保活由 manifest config.background 承担。
+  },
+
+  onReady() {
+    // 与官方 health-demo 完全一致：先取最近值，再建立流式订阅。
+    this._readRecent();
+    this._subscribeHr();
+  },
+
+  onShow() {
+    this._startClock();
+    // 页面再次显示时刷新一次最近值；订阅由 _subscribeHr 保证只建立一次。
+    this._readRecent();
+    this._subscribeHr();
+    brightness.setKeepScreenOn({ keepScreenOn: true });
+  },
+
+  onHide() {
+    this._stopClock();
+    // 5.0 后台模式下订阅不断，重新亮屏 onShow 即可恢复，无需重建。
+    brightness.setKeepScreenOn({ keepScreenOn: false });
+  },
+
+  onDestroy() {
+    this._stopClock();
+    this._teardown();
+    health.unsubscribeSample({ dataType: HR });
+    brightness.setKeepScreenOn({ keepScreenOn: false });
+  },
+
+  _readRecent() {
+    health
+      .getRecentSamples({ dataTypes: [HR] })
+      .then((list) => {
+        // 官方返回 [{ dataType, data: { timeStamp, value } }]。
+        (list || []).forEach((item) => {
+          const data = item && item.data;
+          this._consumeSample({
+            value: data && data.value,
+            timeStamp: data && data.timeStamp
+          });
+        });
+      })
+      .catch((error) => {
+        console.log('[measurement] getRecentSamples failed: ' + JSON.stringify(error));
+      });
+  },
+
+  _startClock() {
+    const tick = () => {
+      const now = new Date();
+      const time = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+      this.clockChars = time.split('');
+    };
+    tick();
+    if (!this._clockTimer) this._clockTimer = setInterval(tick, 10000);
+  },
+
+  _stopClock() {
+    if (this._clockTimer) {
+      clearInterval(this._clockTimer);
+      this._clockTimer = null;
+    }
+  },
+
+  _subscribeHr() {
+    if (this._healthSubscribed) return;
+    this._healthSubscribed = true;
+    health.subscribeSample({
+      dataType: HR,
+      callback: (sample) => this._onSample(sample),
+      fail: (data, code) => {
+        this._healthSubscribed = false;
+        this.qualityText = code === 203 ? '设备不支持' : '心率订阅失败';
+        this.hintText = '请检查健康服务后重试';
+        console.log('[measurement] subscribeSample fail code=' + code + ', data=' + JSON.stringify(data));
+      }
+    });
+  },
+
+  _isUsableBpm(value) {
+    const n = Number(value);
+    return isFinite(n) && n >= 35 && n <= 220 && n !== 255;
+  },
+
+  _onSample(sample) {
+    this._consumeSample(sample);
+  },
+
+  _consumeSample(sample) {
+    const value = sample && sample.value;
+    if (!this._isUsableBpm(value)) return;
+
+    const timeStamp = sample && sample.timeStamp ? sample.timeStamp : 0;
+    if (timeStamp && timeStamp === this._lastConsumedTimestamp) return;
+    if (timeStamp) this._lastConsumedTimestamp = timeStamp;
+    this._latestSample = { value: Number(value), timeStamp };
+
+    this._lastSampleAt = Date.now();
+    this.bpmText = Math.round(Number(value)) + ' BPM';
+    if (!this.isMeasuring) return;
+
+    this._receivedSampleCount++;
+    this._hrvCalc.pushBpm(value);
+    if (!this._measurementStarted) {
+      this._measurementStarted = true;
+      this.qualityText = '正在采集';
+      this.hintText = '保持静止，正常呼吸';
+    }
+    this._updateQualityText();
+  },
+
+  start() {
+    if (this.isMeasuring) return;
+    this.isMeasuring = true;
+    this._hrvCalc.start();
+    this._receivedSampleCount = 0;
+    this._lastSampleAt = 0;
+    this._activeSeconds = 0;
+    this._sessionSeconds = 0;
+    this._measurementStarted = true;
+    this._lastConsumedTimestamp = 0;
+    this.bpmText = '-- BPM';
+    this.qualityText = '正在采集';
+    this.hintText = '保持静止，正常呼吸';
+    this.countdownText = '3:00';
+    this.ringPercent = 100;
+
+    // 重新拉取官方最近值；返回后立即作为本次测量的首个样本。
+    this._readRecent();
+    if (this._latestSample) this._consumeSample(this._latestSample);
+    this._countdownTimer = setInterval(() => this._tickMeasurement(), 1000);
+  },
+
+  _tickMeasurement() {
+    if (!this.isMeasuring) return;
+    this._sessionSeconds++;
+    this._activeSeconds++;
+
+    const sampleFresh = this._lastSampleAt > 0 && Date.now() - this._lastSampleAt <= SAMPLE_STALE_MS;
+    if (sampleFresh) {
+      this.hintText = '保持静止，正常呼吸';
+      this._updateQualityText();
+    } else {
+      this.qualityText = this._receivedSampleCount > 0 ? '数据中断' : '测量中';
+      this.hintText = this._receivedSampleCount > 0 ? '正在等待心率恢复' : '保持静止';
+    }
+
+    const remaining = Math.max(0, DURATION_SEC - this._activeSeconds);
+    const m = Math.floor(remaining / 60), s = remaining % 60;
+    this.countdownText = m + ':' + ('0' + s).slice(-2);
+    this.ringPercent = Math.round((remaining / DURATION_SEC) * 100);
+
+    if (this._activeSeconds >= DURATION_SEC) {
+      this.finish();
+    }
+  },
+
+  _updateQualityText() {
+    const q = this._hrvCalc.getQuality();
+    if (q.level === 'poor') {
+      this.qualityText = '数据波动较大';
+      this.hintText = '请保持静止';
+    } else if (q.level === 'fair') {
+      this.qualityText = '数据一般';
+      this.hintText = '请继续保持静止';
+    } else if (q.level === 'good') {
+      this.qualityText = '数据质量良好';
+    }
+  },
+
+  finish() {
+    this._teardown();
+    this._hrvCalc.stop();
+    this.isMeasuring = false;
+
+    const metrics = this._hrvCalc.getHrvMetrics();
+    if (!metrics) {
+      this._fail('有效心率数据不足，请重试');
+      return;
+    }
+
+    const rr = this._hrvCalc.rrIntervals;
+    const tcm = calcTcmMetrics(rr) || {};
+    const rsaEiRatio = calcRsaEiRatio(this._hrvCalc.bpmBuffer);
+
+    // Vela 无全天心率/睡眠历史 API：sdann/sleepScore/hrReserve 置 0，
+    // 规则引擎对 0 值回退为“未知”（中性 5 分），restingHr 回退 mean_hr。
+    const record = {
+      metrics: {
+        sdnn: metrics.sdnn,
+        mean_rr: metrics.mean_rr,
+        mean_hr: metrics.mean_hr,
+        patternEntropy: metrics.patternEntropy,
+        lfRms: metrics.lfRms,
+        vlfRms: metrics.vlfRms,
+        sdann: 0,
+        stress: 0,
+        restingHr: metrics.mean_hr || 0,
+        hrStability: tcm.hrStability || 0,
+        sdnnSegments: tcm.sdnnSegments || [],
+        sleepScore: 0,
+        hrReserve: 0,
+        rrCount: tcm.rrCount || 0,
+        rsaEiRatio: rsaEiRatio || 0,
+        dataQuality: this._hrvCalc.getQuality(),
+      },
+      timestamp: Date.now()
+    };
+
+    console.log('[measurement] Record to save: ' + JSON.stringify(record));
+
+    this._hrvStorage.addRecord(record, (error) => {
+      if (error) {
+        this.countdownText = '保存失败，请重试';
+        console.log('[measurement] save failed: ' + JSON.stringify(error));
+        return;
+      }
+      // 使首页缓存失效，返回后重新计算规则结果
+      this.$app.$def.globalData.lastDiagnosisTs = 0;
+      this.$app.$def.globalData.homeNeedsRefresh = true;
+      this.countdownText = '测量完成';
+      this.qualityText = '测量完成';
+      this.hintText = '正在保存结果';
+      setTimeout(() => { router.replace({ uri: 'pages/home' }); }, 1200);
+    });
+  },
+
+  _fail(message) {
+    this._teardown();
+    this._hrvCalc.stop();
+    this.isMeasuring = false;
+    this.ringPercent = 0;
+    this.countdownText = '失败';
+    this.qualityText = '测量未完成';
+    this.hintText = message;
+    setTimeout(() => { router.replace({ uri: 'pages/home' }); }, 1800);
+  },
+
+  _teardown() {
+    if (this._countdownTimer) { clearInterval(this._countdownTimer); this._countdownTimer = null; }
+  }
+}
+</script>
+
+<style>
+.page {
+  flex-direction: column;
+  align-items: center;
+  background-color: #E8DCBE;
+}
+
+.clock-slot {
+  width: 480px;
+  height: 44px;
+  margin-top: 22px;
+}
+
+.bg {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 480px;
+  height: 480px;
+}
+
+.arc-clock {
+  width: 480px;
+  height: 44px;
+  position: relative;
+  top: 0px;
+  justify-content: center;
+}
+
+.clock-char { width: 22px; height: 42px; text-align: center; font-size: 30px; font-weight: bold; color: rgba(110, 91, 65, 0.72); transform-origin: 11px 21px; }
+.clock-1 { top: 4px; transform: rotate(-10deg); }
+.clock-2 { top: 1px; transform: rotate(-5deg); }
+.clock-3 { top: -3px; }
+.clock-4 { top: 1px; transform: rotate(5deg); }
+.clock-5 { top: 4px; transform: rotate(10deg); }
+
+.ring-box {
+  width: 280px;
+  height: 280px;
+  margin-top: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring-bg {
+  width: 280px;
+  height: 280px;
+  color: #081A14;
+  stroke-width: 18px;
+  start-angle: 0deg;
+  total-angle: 360deg;
+}
+
+.ring-fg {
+  width: 280px;
+  height: 280px;
+  color: #F0B848;
+  stroke-width: 18px;
+  start-angle: 0deg;
+  total-angle: 360deg;
+}
+
+.countdown {
+  font-size: 26px;
+  color: #8B7D6B;
+  margin-top: 8px;
+}
+
+.bpm {
+  font-size: 38px;
+  color: #04120E;
+  height: 48px;
+}
+
+.ring-center {
+  width: 220px;
+  height: 110px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.quality {
+  margin-top: 8px;
+  font-size: 24px;
+  color: #3A2A18;
+  height: 32px;
+}
+
+.hint {
+  margin-top: 4px;
+  font-size: 20px;
+  color: #8B7D6B;
+  height: 30px;
+}
+
+.btn-start {
+  position: absolute;
+  left: 140px;
+  top: 408px;
+  width: 200px;
+  height: 60px;
+  border-radius: 30px;
+  background-color: #081A14;
+  color: #F0B848;
+  font-size: 28px;
+}
+</style>

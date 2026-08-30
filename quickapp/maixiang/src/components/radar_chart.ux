@@ -1,0 +1,152 @@
+<template>
+  <!--
+    雷达图（零 transform 方案，规避 Vela rotate 语义不可靠问题）：
+    - 静态网格（外框/内环/轴线）= 预渲染 PNG（tools/gen_radar_grid.js 生成，2x 抗锯齿）
+    - 动态数据多边形 = 沿边等距铺墨点的虚线（仅用 left/top 绝对定位）+ 顶点圆点
+  -->
+  <div class="radar-box">
+    <image class="grid" src="{{ gridSrc }}"></image>
+    <div
+      class="seg-dot"
+      for="{{ (i, d) in segDots }}"
+      tid="i"
+      style="left: {{ d.x }}px; top: {{ d.y }}px;"
+    ></div>
+    <div
+      class="vtx-dot"
+      for="{{ (i, v) in vtxDots }}"
+      tid="i"
+      style="left: {{ v.x }}px; top: {{ v.y }}px;"
+    ></div>
+    <text
+      class="lb"
+      for="{{ (i, t) in labelPos }}"
+      tid="i"
+      style="left: {{ t.x }}px; top: {{ t.y }}px;"
+    >{{ t.text }}</text>
+  </div>
+</template>
+
+<script>
+// 盒 346x228，雷达中心 (173,114)，外接半径 80（与网格 PNG 几何一致）
+const R = 80, CX = 173, CY = 114;
+const DOT_STEP = 7;   // 数据边墨点间距
+const SEG_DOT = 5;    // 墨点直径
+const VTX_DOT = 12;   // 顶点圆点直径
+
+export default {
+  props: ['labels', 'ratios'],
+
+  data() {
+    return { gridSrc: '', segDots: [], vtxDots: [], labelPos: [] };
+  },
+
+  onInit() {
+    this._build();
+  },
+
+  // props（labels/ratios）变化时重建，确保空数据/新数据都正确渲染网格与数据点
+  onPropsChange() {
+    this._build();
+  },
+
+  // 顶点坐标：-90° 起顺时针均分
+  _pts(n, r, ratios) {
+    const pts = [];
+    for (let i = 0; i < n; i++) {
+      const ang = (-90 + i * (360 / n)) * Math.PI / 180;
+      const rr = r * (ratios ? Math.max(0.06, Math.min(1, ratios[i])) : 1);
+      pts.push({ x: CX + rr * Math.cos(ang), y: CY + rr * Math.sin(ang) });
+    }
+    return pts;
+  },
+
+  _build() {
+    const labels = this.labels || [];
+    const n = labels.length;
+    if (n < 3) return;
+    const ratios = (this.ratios && this.ratios.length === n) ? this.ratios : null;
+
+    this.gridSrc = '/common/maixiang/radar_grid' + (n === 5 ? 5 : 6) + '.png';
+
+    // 数据多边形：边虚线墨点 + 顶点圆点
+    const segDots = [], vtxDots = [];
+    if (ratios) {
+      const data = this._pts(n, R, ratios);
+      for (let i = 0; i < n; i++) {
+        const p1 = data[i], p2 = data[(i + 1) % n];
+        const len = Math.sqrt(Math.pow(p2.x - p1.x, 2) + Math.pow(p2.y - p1.y, 2));
+        const steps = Math.max(1, Math.round(len / DOT_STEP));
+        for (let s = 1; s < steps; s++) {
+          const t = s / steps;
+          segDots.push({
+            x: Math.round(p1.x + (p2.x - p1.x) * t) - SEG_DOT / 2,
+            y: Math.round(p1.y + (p2.y - p1.y) * t) - SEG_DOT / 2
+          });
+        }
+        vtxDots.push({
+          x: Math.round(p1.x) - VTX_DOT / 2,
+          y: Math.round(p1.y) - VTX_DOT / 2
+        });
+      }
+    }
+    this.segDots = segDots;
+    this.vtxDots = vtxDots;
+
+    // 轴标签（96px 文本盒中心对准标签点）
+    const labelR = R + 22;
+    const labelPos = [];
+    for (let i = 0; i < n; i++) {
+      const ang = (-90 + i * (360 / n)) * Math.PI / 180;
+      labelPos.push({
+        text: labels[i],
+        x: Math.round(CX + labelR * Math.cos(ang)) - 48,
+        y: Math.round(CY + labelR * Math.sin(ang)) - 13
+      });
+    }
+    this.labelPos = labelPos;
+  }
+}
+</script>
+
+<style>
+.radar-box {
+  width: 346px;
+  height: 228px;
+  /* 让网格 PNG、数据边点和标签都相对雷达盒定位，避免被父级 scroll 坐标系带走 */
+  position: relative;
+}
+
+.grid {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 346px;
+  height: 228px;
+}
+
+.seg-dot {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 3px;
+  background-color: #C09040;
+}
+
+.vtx-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  background-color: #C09040;
+}
+
+.lb {
+  position: absolute;
+  width: 96px;
+  height: 26px;
+  text-align: center;
+  font-size: 19px;
+  color: #6A4A28;
+}
+</style>

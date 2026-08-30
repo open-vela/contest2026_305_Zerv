@@ -1,0 +1,27 @@
+<script>
+/**
+ * 脉象 (MaiXiang) — openvela 快应用入口
+ * 移植自 Zepp OS 版 d:/Maixiang（把脉 + 展示页子集）
+ */
+export default {
+  onCreate() {
+    console.log('[lifecycle] [app] onCreate');
+  },
+
+  onDestroy() {
+    console.log('[lifecycle] [app] onDestroy');
+  },
+
+  onError(err) {
+    console.log(`[lifecycle] [app] onError: ${err.message}`);
+    console.log(`[lifecycle] [app] onError stack: ${err.stack}`);
+  },
+
+  // 全局数据：页面间共享最近一次规则分析结果，避免重复读盘/计算
+  globalData: {
+    lastDiagnosis: null,
+    lastDiagnosisTs: 0,
+    homeNeedsRefresh: false
+  }
+}
+</script>

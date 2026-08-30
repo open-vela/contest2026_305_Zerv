@@ -1,0 +1,236 @@
+<template>
+  <!-- 关于页（古风版）：固定宣纸底 + 内容滚动，与原版 about.js 结构一致 -->
+  <stack class="root">
+    <image class="bgfix" src="/common/maixiang/list1.png"></image>
+    <scroll class="scroll" scroll-y="true">
+      <div class="content">
+        <!-- 顶部时间 -->
+        <div class="arc-clock">
+          <text class="clock-char clock-1">{{ clockChars[0] }}</text>
+          <text class="clock-char clock-2">{{ clockChars[1] }}</text>
+          <text class="clock-char clock-3">{{ clockChars[2] }}</text>
+          <text class="clock-char clock-4">{{ clockChars[3] }}</text>
+          <text class="clock-char clock-5">{{ clockChars[4] }}</text>
+        </div>
+        <!-- 图标 + 应用名 + 版本 -->
+        <image class="app-icon" src="/common/maixiang/icon.png"></image>
+        <text class="app-name">脉象</text>
+        <text class="app-ver">v1.0.0 (Vela)</text>
+
+        <!-- 简介卡 -->
+        <div class="card col">
+          <text class="desc">每日一刻 · 聆听身体的声音</text>
+          <text class="desc">设备端规则分析与传统脉学科普</text>
+        </div>
+
+        <!-- 项目来源与参赛版边界 -->
+        <div class="card col">
+          <div class="card-head">
+            <div class="head-bar"></div>
+            <text class="card-title">项目说明</text>
+          </div>
+          <text class="note">本项目与团队自有 Zepp OS 版《脉象》同步开发，并针对 openvela 快应用框架独立完成界面与平台接口适配。</text>
+          <text class="note">当前结果基于心率采样的换算统计与经验规则，不读取原始 PPG，不构成医疗诊断。</text>
+        </div>
+
+        <!-- 开发团队卡 -->
+        <div class="card col">
+          <div class="card-head">
+            <div class="head-bar"></div>
+            <text class="card-title">开发团队</text>
+          </div>
+          <div class="credit-row" for="{{ (i, item) in credits }}" tid="i">
+            <text class="credit-label">{{ item.label }}</text>
+            <text class="credit-value">{{ item.value }}</text>
+            <div class="credit-sep" if="{{ i < credits.length - 1 }}"></div>
+          </div>
+        </div>
+
+        <!-- 鸣谢卡 -->
+        <div class="card col">
+          <div class="card-head">
+            <div class="head-bar"></div>
+            <text class="card-title">特别鸣谢</text>
+          </div>
+          <text class="thanks-row" for="{{ (i, n) in thanks }}" tid="i">{{ n }}</text>
+        </div>
+
+        <text class="footer">本应用仅供健康科普参考，不构成医疗诊断</text>
+      </div>
+    </scroll>
+  </stack>
+</template>
+
+<script>
+export default {
+  private: {
+    credits: [
+      { label: 'project by', value: '@Zerv_Health' },
+      { label: 'developer', value: '@yiStar & @zxxhcj' },
+      { label: 'ui design', value: '@yiStar' },
+      { label: 'test support', value: '@ZHAO' },
+      { label: 'test support', value: '@zty' },
+      { label: 'test support', value: '@Lumia_Kcy' },
+    ],
+    thanks: ['@zxxhcj', '@zty'],
+    clockChars: ['-', '-', ':', '-', '-']
+  },
+
+  onInit() {
+    this._clockTimer = null;
+    this._startClock();
+  },
+
+  onShow() {
+    this._startClock();
+  },
+
+  onHide() {
+    this._stopClock();
+  },
+
+  onDestroy() {
+    this._stopClock();
+  },
+
+  _startClock() {
+    const tick = () => {
+      const now = new Date();
+      const time = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+      this.clockChars = time.split('');
+    };
+    tick();
+    if (!this._clockTimer) this._clockTimer = setInterval(tick, 10000);
+  },
+
+  _stopClock() {
+    if (this._clockTimer) {
+      clearInterval(this._clockTimer);
+      this._clockTimer = null;
+    }
+  }
+}
+</script>
+
+<style>
+.root {
+  width: 100%;
+  height: 100%;
+  background-color: #E8DCBE;
+}
+
+.bgfix {
+  width: 480px;
+  height: 480px;
+}
+
+.scroll {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.content {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding: 44px 40px 80px 40px;
+}
+
+.arc-clock {
+  width: 480px;
+  height: 44px;
+  position: relative;
+  top: -20px;
+  justify-content: center;
+}
+
+.clock-char { width: 22px; height: 42px; text-align: center; font-size: 30px; font-weight: bold; color: rgba(110, 91, 65, 0.72); transform-origin: 11px 21px; }
+.clock-1 { top: 4px; transform: rotate(-10deg); }
+.clock-2 { top: 1px; transform: rotate(-5deg); }
+.clock-3 { top: -3px; }
+.clock-4 { top: 1px; transform: rotate(5deg); }
+.clock-5 { top: 4px; transform: rotate(10deg); }
+
+.app-icon {
+  width: 128px;
+  height: 128px;
+  border-radius: 30px;
+}
+
+.app-name {
+  font-size: 44px;
+  color: #8A5A20;
+  margin-top: 10px;
+}
+
+.app-ver {
+  font-size: 24px;
+  color: #8A6E4E;
+  margin-top: 4px;
+  margin-bottom: 24px;
+}
+
+.card {
+  width: 400px;
+  background-color: #D8CCB2;
+  border-radius: 24px;
+  padding: 22px 28px;
+  margin-bottom: 20px;
+}
+
+.col { flex-direction: column; }
+
+.desc {
+  width: 100%;
+  text-align: center;
+  font-size: 26px;
+  color: #5A4632;
+}
+
+.note {
+  width: 100%;
+  font-size: 23px;
+  color: #5A4632;
+  margin-bottom: 10px;
+}
+
+.card-head {
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.head-bar {
+  width: 6px;
+  height: 28px;
+  border-radius: 3px;
+  background-color: #C0A050;
+  margin-right: 16px;
+}
+
+.card-title { font-size: 28px; color: #8A5A20; }
+
+/* 分隔线用独立 div：Vela 对单边 border 支持不完整（border-bottom 会画成整圈） */
+.credit-row {
+  flex-direction: column;
+  padding: 12px 0;
+}
+
+.credit-label { font-size: 22px; color: #8A6E4E; }
+.credit-value { font-size: 28px; color: #5A4632; margin-top: 4px; }
+.credit-sep { width: 100%; height: 2px; background-color: #C0A050; margin-top: 14px; opacity: 0.5; }
+
+.thanks-row {
+  font-size: 26px;
+  color: #5A4632;
+  height: 52px;
+}
+
+.footer {
+  width: 380px;
+  text-align: center;
+  font-size: 20px;
+  color: #8A6E4E;
+  margin-top: 10px;
+}
+</style>

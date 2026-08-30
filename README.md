@@ -1,36 +1,53 @@
-# contest2026_305_Zerv
+# 脉象（MaiXiang）
 
-👋 欢迎参加 **2026 首届 openvela AI 硬件开发者大赛**！
+## 一、作品简介
 
-这是组委会为你的队伍创建的**专属参赛仓库**（本仓为样例/模板，队伍编号 `305`；你看到的将是你自己的 `contest2026_<编号>_<队伍名>`）。比赛期间，你的全部参赛代码、打包产物与 AI Coding 日志都提交到这里。
+《脉象》是面向 openvela 智能手表的健康观察与传统脉学科普快应用，属于 2026 首届 openvela AI 硬件开发者大赛的“快应用 / 手表应用创新”方向。
 
-> 本仓既是「代码仓」，又内置了一键拉取整套 openvela 工程的 `repo` 清单（manifest）。你只需跟它打交道，**自始至终只动一个文件夹**。
+应用通过 `service.health` 获取设备心率采样，在设备端完成数据质量过滤、展示性统计和本地经验规则分析，并以脉象、体质倾向、六维指标、五脏平衡趋势和生活方式参考等形式呈现结果。应用不依赖服务端，不包含付费激活或体验次数限制。
 
----
+## 二、选题方向
 
-## 一、先读这些官方文档
+**快应用 / 手表应用创新。**
 
-**通用（所有赛道必读）：**
+项目围绕圆屏手表的短时健康观察场景设计，使用 openvela 快应用框架、健康服务、文件服务和圆屏组件完成采集、分析、持久化与展示闭环。
 
-| 文档                                                                                                                                     | 用途                                           |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| [《大赛总览》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/contest_overview.md)                        | 赛道、流程、评分、资源，建议先通读             |
-| [《参赛代码提交指南》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/code_submission_guide.md)           | 仓库获取、提交流程、时间与权限（**以此为准**） |
-| [《AI Coding 日志归集与提交手册》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md) | 如何导出 AI 对话日志并提交到 `logs/`           |
+## 三、功能与亮点
 
-**按你的赛道选读（三选一）：**
+- 使用 `service.health` 获取最近心率并订阅实时心率样本。
+- 设备端完成 BPM 有效性检查、中位数窗口过滤、质量分级和统计计算。
+- 本地规则引擎输出 14 类基础脉象、六维指标、体质倾向、五脏平衡趋势和养生参考。
+- 基于 `@system.file` 的逐文件串行 I/O 队列和内存缓存，降低并发写入及写后读竞态风险。
+- 历史数据按日归档，最多保留 14 天，适配小内存设备。
+- 针对 480×480 圆屏重写界面，使用预渲染位图、圆点阵和 arc progress 规避平台图形限制。
 
-| 赛道                  | 教程导航                                                                                                                                                 |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 快应用 / 手表应用创新 | [快应用教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/quickapp/quickapp_guide_index.md)                         |
-| AI 硬件产品创新       | [AI 硬件赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_hardware/ai_hardware_guide_index.md)              |
-| 新硬件适配            | [新硬件适配赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/hardware_porting/hardware_porting_guide_index.md) |
+## 四、目录结构
 
----
+- `quickapp/maixiang/`：完整《脉象》QuickApp 工程。
+- `quickapp/maixiang/src/pages/`：开屏、首次引导、主页、测量和专题展示页面。
+- `quickapp/maixiang/src/components/`：脉形图和雷达图组件。
+- `quickapp/maixiang/src/utils/`：健康接口、统计计算、诊断规则和文件存储模块。
+- `quickapp/maixiang/docs/`：开发日志、算法边界、隐私与原创性材料。
+- `logs/`：按官方采集器格式提交的 AI Coding 日志。
+- `contest2026_305_Zerv.xml`：将 QuickApp 映射到 openvela 工程的 repo manifest。
 
-## 二、第一步：拉取完整工程
+## 五、运行方式
 
-用组委会提供的命令一键拉取「openvela 全量源码 + 你的专属仓」：
+### 1. 独立构建 QuickApp
+
+```bash
+cd quickapp/maixiang
+npm install
+npm run build
+```
+
+构建成功后会生成包名为 `com.maixiang.pulse` 的调试 RPK；开发监听可运行：
+
+```bash
+npm run start
+```
+
+### 2. 拉取完整 openvela 工作区
 
 ```bash
 repo init -u https://github.com/open-vela/contest2026_305_Zerv \
@@ -38,111 +55,47 @@ repo init -u https://github.com/open-vela/contest2026_305_Zerv \
 repo sync -c -j8
 ```
 
-同步后，你的整个仓库位于工作区的 `contest2026_305_Zerv/`，openvela 全量源码在外层（`nuttx/`、`apps/`、`packages/`、`vendor/` 等）。
+manifest 会将 `quickapp/maixiang` 映射到 `packages/apps/contest2026_305_maixiang`。构建和部署请遵循官方快应用教程；初赛阶段建议使用 openvela 模拟器完成开发和验证。
 
----
-
-## 三、第二步：在哪里写代码
-
-**只在自己的仓目录 `contest2026_305_Zerv/` 里开发。** 不同作品形态放在对应子目录，manifest 会通过 `<linkfile>` 把它们**软链**到 openvela 编译树该在的位置——你不用手动 copy：
-
-| 作品形态 | 你的代码放这里             | 系统自动映射到                                 |
-| -------- | -------------------------- | ---------------------------------------------- |
-| 应用     | `app/hello_app/`           | `packages/demos/contest2026_305_hello_app`     |
-| 快应用   | `quickapp/hello_quickapp/` | `packages/apps/contest2026_305_hello_quickapp` |
-| 板级适配 | `board/contest_board/`     | `vendor/openvela/boards/contest2026_305_board` |
-
-> 用不到的形态目录可以删掉；新增作品时按同样规则加子目录，并在 `contest2026_305_Zerv.xml` 里补一条 `<linkfile>` 映射即可。**生产仓库（packages/nuttx/vendor 等）零改动。**
-
-建议仓库目录约定（便于评委定位）：
+## 六、核心数据流程
 
 ```text
-app/ | quickapp/ | board/   # 你的作品代码
-logs/                       # AI Coding 日志（主动导出后提交，格式见 logs/README.md）
-README.md                   # 作品说明（提交前请改成你自己的，见第六节）
+service.health 心率样本
+  -> BPM 合法性检查与去重
+  -> BPM 换算估算 RR
+  -> 统计指标与数据质量
+  -> 本地经验规则分析
+  -> 文件持久化
+  -> 首页、雷达图和专题页展示
 ```
 
-> 仓内附带了一个 `.gitignore.example`，给出了**编译产物**等不需要进仓的文件示例。如需启用，`cp .gitignore.example .gitignore` 后按需增删即可。**注意 `logs/` 下最终导出的 AI Coding 日志必须提交，不要忽略。**
->
-> `logs/` 的目录结构与提交格式见 [logs/README.md](logs/README.md)。
+## 七、AI Coding 使用说明
 
----
+AI 辅助参与了需求拆解、Zepp OS 到 openvela 的平台差异评估、QuickApp 页面迁移、健康接口接入、圆屏 UI 适配、存储竞态排查、兼容性检查、测试验证和文档整理。功能取舍、平台验证、结果审核和提交由开发者完成。
 
-## 四、第三步：编译与运行
+符合官方格式的 AI Coding 会话日志提交在 `logs/` 目录；日志安装、导出、校验和提交方式以官方《AI Coding 日志归集与提交手册》为准。
 
-编译/运行步骤随作品形态不同而不同，请参考你所在赛道的教程导航：
+## 八、已知限制与真实性声明
 
-- 快应用 / 手表应用：[快应用教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/quickapp/quickapp_guide_index.md)（含模拟器与开发板部署）。
-- AI 硬件产品创新：[AI 硬件赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_hardware/ai_hardware_guide_index.md)（环境搭建、编译烧录、Skill 开发）。
-- 新硬件适配：[新硬件适配赛道教程导航](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/hardware_porting/hardware_porting_guide_index.md)（BSP 移植、最小 NSH 基线）。
+- 输入来自 `service.health` 的心率采样，不读取原始 PPG 波形。
+- RR 间隔由低频 BPM 样本换算，仅用于展示性波动统计，不等同于医疗设备提供的逐搏 RR 间期。
+- SDNN、LF/VLF RMS、RSA 等结果是基于当前采样能力的近似统计，不是临床 HRV 检测结果。
+- 脉象、体质和五脏平衡结果由本地经验阈值规则生成，没有机器学习模型或远程 AI 推理。
+- 当前没有历史记录浏览页面，底层文件只用于最近结果加载和最多 14 天的数据保留。
+- 测量固定持续 180 秒；短时数据中断会提示等待，但不会暂停倒计时。
+- 模拟器提供的是平台内置健康数据回放，不代表当前佩戴者的实时生理数据。
+- 本作品仅用于健康科普和个人趋势观察，不构成医疗诊断、治疗或用药建议。
 
-子目录已通过 manifest 中的 `<linkfile>` 软链进 openvela 编译树，因此构建在 openvela 工作区**根目录**（即你这个仓的上一级）进行。openvela 使用 `build.sh` 作为统一入口，接收一个 **board config 路径**作为参数：
+## 九、提交要求核对
 
-```bash
-# 进入 openvela 工作区根目录（你的仓的上一级）
-cd ..
+- 官方仓库：<https://github.com/open-vela/contest2026_305_Zerv>
+- 目标分支：`dev-ai-contest-2026`
+- 代码只放在本队仓库的 `quickapp/maixiang/` 内，不修改 openvela 公共仓。
+- 代码提交通过 fork、Pull Request 和最终 merge 完成。
+- 首次提交 PR 前，使用报名时的 GitHub 账号签署 openvela CLA。
+- 提交前删除官方示例日志，并将真实日志按 `logs/<github_login>/...` 格式加入仓库。
+- 作品介绍、演示视频和仓库地址按赛事表单要求提交；截止时间以官方公告为准。
 
-# 通用语法：第一个参数是 board config 路径，第二个参数可以是 menuconfig / distclean 等
-./build.sh <board-config-path> [menuconfig|distclean] [-j8]
-```
+## 十、许可与来源
 
-> 具体的 board config 路径、目标产物、模拟器/真机部署方式请以你所在赛道的教程导航为准。本仓 `app/` `quickapp/` `board/` 三个示例骨架对应的 Kconfig 选项可通过 `menuconfig` 启用。
-
----
-
-## 五、第四步：提交作品
-
-1. **fork** 你的专属仓 → 开发 → `git commit` 并推送 → 向专属仓发起 **Pull Request**，可**自行 review 并合入**（无需等组委会）。
-2. **AI Coding 日志**：与 AI 工具的对话会自动记录到本机 staging（不会自动上传），需你**主动导出/打包**选定会话到仓内 `logs/` 目录后一并提交。详见[《AI Coding 日志归集与提交手册》](https://github.com/open-vela/docs/blob/dev-ai-contest-2026/zh-cn/contest_2026/ai_coding_log_guide.md)。
-3. 若需改动 **nuttx 等公共仓库**，不在本仓改，而是 fork 对应公共仓、以 PR 提交到 `dev-ai-contest-2026` 分支，由组委会 review 后合入。
-
-> ⏰ **提交作品截止：9 月 20 日**。截止后统一收回 push 权限，仍可查看 / clone。
->
-> 获奖后再按要求将作品 PR 至 openvela 上游对应仓库（走标准 PR + CI 流程）。
-
-### 关于 PR 与 CLA
-
-- 本仓所有改动通过 **Pull Request** 合入（分支保护强制，可自行合入自己的 PR）。
-- 首次贡献需在[**官网签署 CLA**](https://openvela.com/#/community/cla)；PR 上会自动跑 `cla/signature` 检查，在官网签署成功后，在 PR 评论 `/check-cla` 复检即可通过。
-
----
-
-## 六、提交前：把本 README 改成你的作品说明
-
-本文件目前是组委会给的**使用说明书**。**作品提交前，请把它替换成你自己作品的说明**，方便评委快速了解你做了什么、怎么跑起来。建议至少包含以下内容：
-
-```markdown
-# <你的作品名>
-
-## 一、作品简介
-<一句话/一段话说明这个作品是什么、解决什么问题、亮点在哪>
-
-## 二、选题方向
-<快应用 / 手表应用创新 ｜ AI 硬件产品创新 ｜ 新硬件适配 ｜ 自定方向，并简述理由>
-
-## 三、目录结构
-<列出你这个仓里各目录/文件的作用，例如：>
-- `app/xxx/`        — <说明>
-- `board/xxx/`      — <说明>
-- `quickapp/xxx/`   — <说明>
-- `logs/`           — AI Coding 日志
-- `docs/` 或其他    — <说明>
-
-## 四、运行方式
-<拉取工程后，如何编译、烧录/部署、运行的完整步骤；最好能让评委照着一步步复现>
-
-## 五、AI Coding 使用说明
-<说明本作品如何借助 AI 辅助开发：
-- 在需求拆解 / 方案设计 / 编码 / 调试 / 文档等环节如何与 AI 协作；
-- AI 对开发效率或质量带来的实际帮助。
-完整对话日志见 logs/ 目录>
-```
-
-> 提示：将会根据「作品本身 + 你的 README 说明 + `logs/` 里的 AI Coding 日志」来理解和评估你的作品，README 写清楚很重要。
-
----
-
-## 附：仓库命名规范
-
-`contest2026_<编号>_<队伍名>` — 编号三位零填充；队名 slug（全小写、英文/拼音、连字符）。例：`contest2026_305_Zerv`。
-（仓库由组委会统一创建，**每队仅一个仓**，无需自行命名。）
+项目采用 Apache License 2.0。第三方来源、素材说明和迁移背景见 `quickapp/maixiang/NOTICE`；开发记录、算法边界、隐私说明和原创性材料见 `quickapp/maixiang/docs/`。

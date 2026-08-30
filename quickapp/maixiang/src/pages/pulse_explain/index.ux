@@ -1,0 +1,220 @@
+<template>
+  <!-- 固定宣纸底 + 内容滚动（避免 list1.png 平铺接缝) -->
+  <stack class="root">
+    <image class="bgfix" src="/common/maixiang/list1.png"></image>
+    <scroll class="scroll" scroll-y="true">
+      <div class="content">
+        <div class="arc-clock">
+          <text class="clock-char clock-1">{{ clockChars[0] }}</text>
+          <text class="clock-char clock-2">{{ clockChars[1] }}</text>
+          <text class="clock-char clock-3">{{ clockChars[2] }}</text>
+          <text class="clock-char clock-4">{{ clockChars[3] }}</text>
+          <text class="clock-char clock-5">{{ clockChars[4] }}</text>
+        </div>
+        <text class="title">这就是说...</text>
+
+        <div class="card" if="{{ hasData }}">
+          <text class="explain">{{ explainText }}</text>
+        </div>
+        <text class="empty" if="{{ !hasData }}">暂无把脉数据</text>
+
+        <text class="disclaimer">以上解读仅供参考，不具备医疗诊断效力。如有健康疑虑，请咨询专业医师。</text>
+      </div>
+    </scroll>
+  </stack>
+</template>
+
+<script>
+import { HrvStorageManager } from '../../utils/hrv_storage_manager'
+import { diagnosePulse } from '../../utils/pulse_diagnosis'
+
+// 白话解读生成（移植自 Zepp OS 版 pulse_explain.js）
+function plainExplain(d) {
+  var mp = d.mainPulse, dm = d.dimensions, L = [];
+  var pn = mp.name || '未知脉象';
+
+  if (mp.nature === 'yang') {
+    L.push('您本次测量的脉象为"' + pn + '"，属于阳脉。');
+    L.push('');
+    L.push('阳脉代表身体处于更为亢进、活跃的状态。');
+    L.push('这不一定是不好的，有时精力充沛也是阳脉的表现。');
+    L.push('');
+    if (dm.tension && dm.tension.category === 'xian') {
+      L.push('本次紧张度偏高，可能与近期压力大或情绪紧绷有关，');
+      L.push('建议适当做一些放松训练，如冥想、慢走。');
+    }
+    if (dm.rate && (dm.rate.category === 'shuo' || dm.rate.category === 'pian_shuo')) {
+      L.push('心率偏快，交感神经较为兴奋，注意避免咖啡因和熬夜。');
+    }
+  } else if (mp.nature === 'yin') {
+    L.push('您本次测量的脉象为"' + pn + '"，属于阴脉。');
+    L.push('');
+    L.push('阴脉代表身体机能偏于沉静、收敛的状态。');
+    L.push('休息充分或体质偏寒凉时容易出现阴脉。');
+    L.push('');
+    if (dm.strength && (dm.strength.category === 'xu' || dm.strength.category === 'pian_xu')) {
+      L.push('脉力偏弱，气血可能不够充盈，');
+      L.push('建议关注营养和睡眠，避免过度消耗。');
+    }
+    if (dm.rate && dm.rate.category === 'chi') {
+      L.push('心率偏慢，迷走神经张力较高，适当运动有助于提升活力。');
+    }
+  } else {
+    L.push('您本次测量的脉象为"' + pn + '"，属于平脉。');
+    L.push('');
+    L.push('平脉是中医认为的最佳脉象，代表阴阳调和，气血通畅。');
+    L.push('这说明您的自主神经调节能力良好，身体状态平衡。');
+    L.push('');
+    L.push('继续保持良好的生活习惯即可。');
+  }
+
+  if (dm.rsa && (dm.rsa.category === 'rigid' || dm.rsa.category === 'blunted')) {
+    L.push('');
+    L.push('自主神经调节能力有所减退。');
+    L.push('深呼吸对心率的调节不太明显，');
+    L.push('建议每天坚持做几组腹式深呼吸练习帮助恢复。');
+  }
+
+  return L.join('\n');
+}
+
+export default {
+  private: {
+    hasData: false,
+    explainText: '',
+    clockChars: ['-', '-', ':', '-', '-']
+  },
+
+  onInit() {
+    this._clockTimer = null;
+    this._startClock();
+    const g = this.$app.$def.globalData;
+
+    // 优先复用全局诊断缓存，否则读今日数据重新诊断
+    if (g.lastDiagnosis) {
+      this.hasData = true;
+      this.explainText = plainExplain(g.lastDiagnosis);
+      return;
+    }
+
+    const hrvStorage = new HrvStorageManager();
+    hrvStorage.init(() => {
+      hrvStorage.getTodayData((td) => {
+        if (td && td.length > 0) {
+          const latest = td[td.length - 1];
+          if (latest && latest.metrics && latest.metrics.sdnn > 0) {
+            const diag = diagnosePulse(latest.metrics);
+            g.lastDiagnosis = diag;
+            g.lastDiagnosisTs = latest.timestamp;
+            this.hasData = true;
+            this.explainText = plainExplain(diag);
+          }
+        }
+      });
+    });
+  },
+
+  onShow() {
+    this._startClock();
+  },
+
+  onHide() {
+    this._stopClock();
+  },
+
+  onDestroy() {
+    this._stopClock();
+  },
+
+  _startClock() {
+    const tick = () => {
+      const now = new Date();
+      const time = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+      this.clockChars = time.split('');
+    };
+    tick();
+    if (!this._clockTimer) this._clockTimer = setInterval(tick, 10000);
+  },
+
+  _stopClock() {
+    if (this._clockTimer) {
+      clearInterval(this._clockTimer);
+      this._clockTimer = null;
+    }
+  },
+
+}
+</script>
+
+<style>
+.root {
+  width: 100%;
+  height: 100%;
+  background-color: #E8DCBE;
+}
+
+.bgfix {
+  width: 480px;
+  height: 480px;
+}
+
+.scroll {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.content {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 0 60px 0;
+}
+
+.arc-clock {
+  width: 480px;
+  height: 44px;
+  position: relative;
+  top: 0px;
+  justify-content: center;
+}
+
+.clock-char { width: 22px; height: 42px; text-align: center; font-size: 30px; font-weight: bold; color: rgba(110, 91, 65, 0.72); transform-origin: 11px 21px; }
+.clock-1 { top: 4px; transform: rotate(-10deg); }
+.clock-2 { top: 1px; transform: rotate(-5deg); }
+.clock-3 { top: -3px; }
+.clock-4 { top: 1px; transform: rotate(5deg); }
+.clock-5 { top: 4px; transform: rotate(10deg); }
+
+.title {
+  width: 100%;
+  text-align: center;
+  font-size: 28px;
+  color: #6B5335;
+  margin-top: 4px;
+  margin-bottom: 16px;
+}
+
+.card {
+  width: 390px;
+  background-color: #D8CCB2;
+  border-radius: 26px;
+  padding: 24px 20px;
+}
+
+.explain { font-size: 28px; color: #3C2818; }
+
+.empty {
+  margin-top: 140px;
+  font-size: 32px;
+  color: #6B5335;
+}
+
+.disclaimer {
+  width: 350px;
+  text-align: center;
+  font-size: 18px;
+  color: #6B5335;
+  margin-top: 20px;
+}
+</style>

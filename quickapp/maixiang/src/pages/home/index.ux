@@ -1,0 +1,517 @@
+<import name="radar-chart" src="../../components/radar_chart.ux"></import>
+<import name="pulse-wave" src="../../components/pulse_wave.ux"></import>
+
+<template>
+  <!-- 脉象主页：Zepp OS 视觉语义 + Vela 4.0 安全控件 -->
+  <stack class="page">
+    <image class="fixed-bg" src="/common/maixiang/Bg.png"></image>
+    <scroll class="scroll" scroll-y="true">
+      <div class="content">
+        <div class="arc-clock">
+          <text class="clock-char clock-1">{{ clockChars[0] }}</text>
+          <text class="clock-char clock-2">{{ clockChars[1] }}</text>
+          <text class="clock-char clock-3">{{ clockChars[2] }}</text>
+          <text class="clock-char clock-4">{{ clockChars[3] }}</text>
+          <text class="clock-char clock-5">{{ clockChars[4] }}</text>
+        </div>
+        <text class="pulse-name">{{ pulseName }}</text>
+        <text class="pulse-subtitle">{{ pulseSubtitle }}</text>
+
+        <div class="wave-card">
+          <text class="wave-label">脉形</text>
+          <pulse-wave if="{{ waveReady }}" pulse="{{ pulseType }}"></pulse-wave>
+          <text class="wave-hint">{{ pulseDescription }}</text>
+        </div>
+
+        <div class="constitution-card">
+          <div class="gold-mark"></div>
+          <div class="constitution-body">
+            <text class="section-eyebrow">体质倾向</text>
+            <text class="constitution-name">{{ constitutionName }}</text>
+            <text class="constitution-desc">{{ constitutionDescription }}</text>
+          </div>
+        </div>
+
+        <div class="data-card" onclick="goDimensions">
+          <div class="card-head">
+            <text class="card-title">六维脉象</text>
+            <text class="card-more">详情 ></text>
+          </div>
+          <radar-chart if="{{ radarReady }}" labels="{{ dimLabels }}" ratios="{{ dimRatios }}"></radar-chart>
+        </div>
+
+        <div class="data-card" onclick="goOrgans">
+          <div class="card-head">
+            <text class="card-title">五脏状态</text>
+            <text class="card-more">详情 ></text>
+          </div>
+          <radar-chart if="{{ radarReady }}" labels="{{ organLabels }}" ratios="{{ organRatios }}"></radar-chart>
+        </div>
+
+        <input class="main-button" type="button" value="把 脉" onclick="goMeasurement" />
+        <input class="sub-button" type="button" value="养生建议" if="{{ hasData }}" onclick="goRecommendations" />
+        <input class="sub-button" type="button" value="脉象原理" onclick="goTheory" />
+
+        <div class="disclaimer-card">
+          <text class="disclaimer-title">健康提示</text>
+          <text class="disclaimer">脉象分析仅用于日常健康趋势参考，不能替代专业医疗诊断、治疗或用药建议。如有不适，请及时咨询医生。</text>
+        </div>
+
+        <input class="about-button" type="button" value="关 于" onclick="goAbout" />
+        <text class="build-mark">脉象 · Vela 5.0</text>
+      </div>
+    </scroll>
+  </stack>
+</template>
+
+<script>
+import router from '@system.router'
+import { HrvStorageManager } from '../../utils/hrv_storage_manager'
+import { diagnosePulse } from '../../utils/pulse_diagnosis'
+
+export default {
+  private: {
+    hasData: false,
+    radarReady: false,
+    waveReady: false,
+    pulseType: 'flat',
+    pulseName: '尚未把脉',
+    pulseSubtitle: '完成一次测量，生成脉象分析',
+    pulseDescription: '静心片刻 · 聆听身体',
+    constitutionName: '--',
+    constitutionDescription: '暂无体质数据',
+    dimLabels: ['脉率', '节律', '力度', '宽度', '张力', '呼吸律'],
+    dimRatios: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05],
+    organLabels: ['心', '肝', '脾', '肺', '肾'],
+    organRatios: [0.05, 0.05, 0.05, 0.05, 0.05],
+    clockChars: ['-', '-', ':', '-', '-']
+  },
+
+  onInit() {
+    console.log('[HOME][01] onInit enter');
+    this._clockTimer = null;
+    this._loadingDiagnosis = false;
+    this._loadToken = 0;
+    this._storage = new HrvStorageManager();
+    const globalData = this.$app.$def.globalData;
+    // 当前 Home 实例会主动完成一次加载，刷新标记在这里一次性消费，
+    // 避免首次加载期间 onShow 未消费，返回其他页面后再次触发读取。
+    globalData.homeNeedsRefresh = false;
+    if (globalData.lastDiagnosis && globalData.lastDiagnosisTs > 0) {
+      this._applyDiagnosis(globalData.lastDiagnosis);
+    }
+    this._startClock();
+    this._loadLatestDiagnosis();
+    console.log('[HOME][02] onInit exit');
+  },
+
+  onReady() {
+    console.log('[HOME][03] onReady');
+  },
+
+  onShow() {
+    console.log('[HOME][04] onShow');
+    this._startClock();
+    // 返回 Home 只恢复显示，不重新读盘；测量完成会通过 replace 新建 Home，
+    // 在新实例的 onInit 中完成一次加载，避免返回页面时出现空态/数据态交替。
+  },
+
+  onHide() {
+    console.log('[HOME][05] onHide');
+    this._stopClock();
+  },
+
+  onDestroy() {
+    console.log('[HOME][06] onDestroy');
+    this._stopClock();
+  },
+
+  _loadLatestDiagnosis() {
+    if (this._loadingDiagnosis) return;
+    this._loadingDiagnosis = true;
+    const loadToken = ++this._loadToken;
+    this._initialized = true;
+    console.log('[HOME][07] storage init begin');
+    this._storage.init(() => {
+      this._storage.getTodayData((records) => {
+        if (loadToken !== this._loadToken) return;
+        const list = records || [];
+        console.log('[HOME][08] today records=' + list.length);
+        if (!list.length) {
+          if (!this.hasData) this._showEmptyState();
+          this._loadingDiagnosis = false;
+          return;
+        }
+        const latest = list[list.length - 1];
+        if (!latest || !latest.metrics) {
+          if (!this.hasData) this._showEmptyState();
+          this._loadingDiagnosis = false;
+          return;
+        }
+        try {
+          const globalData = this.$app.$def.globalData;
+          let diagnosis = null;
+          if (globalData.lastDiagnosis && globalData.lastDiagnosisTs === latest.timestamp) {
+            diagnosis = globalData.lastDiagnosis;
+            console.log('[HOME][09] diagnosis cache hit');
+          } else {
+            diagnosis = diagnosePulse(latest.metrics);
+            globalData.lastDiagnosis = diagnosis;
+            globalData.lastDiagnosisTs = latest.timestamp;
+            console.log('[HOME][10] diagnosis calculated');
+          }
+          this._applyDiagnosis(diagnosis);
+        } catch (error) {
+          console.log('[HOME][11] diagnosis failed=' + error);
+          if (!this.hasData) this._showEmptyState();
+        }
+        this._loadingDiagnosis = false;
+      });
+    });
+  },
+
+  _applyDiagnosis(diagnosis) {
+    if (!diagnosis || !diagnosis.mainPulse) {
+      if (!this.hasData) this._showEmptyState();
+      return;
+    }
+    const pulse = diagnosis.mainPulse;
+    const dim = diagnosis.dimensions || {};
+    const organs = diagnosis.organAnalysis || [];
+    this.hasData = true;
+    this.pulseName = pulse.name || '脉象';
+    this.pulseType = pulse.type || 'flat';
+    this.pulseSubtitle = pulse.nature === 'yang' ? '阳性脉象' : pulse.nature === 'yin' ? '阴性脉象' : '平性脉象';
+    this.pulseDescription = pulse.description || '完成把脉后查看脉象特征';
+    this.constitutionName = diagnosis.constitution ? diagnosis.constitution.name : '--';
+    this.constitutionDescription = diagnosis.constitution ? (diagnosis.constitution.description || '') : '';
+    this.dimRatios = ['rate', 'rhythm', 'strength', 'width', 'tension', 'rsa'].map((key) => {
+      const item = dim[key];
+      return item ? Math.max(0.05, Math.min(1, (item.score || 0) / 9)) : 0.05;
+    });
+    this.organRatios = [0, 1, 2, 3, 4].map((index) => {
+      const item = organs[index];
+      return item ? Math.max(0.05, Math.min(1, (item.score || 0) / 10)) : 0.05;
+    });
+    this._refreshRadars();
+    this._refreshWave();
+    console.log('[HOME][12] UI updated, pulse=' + this.pulseName);
+  },
+
+  _showEmptyState() {
+    this.hasData = false;
+    this.pulseName = '尚未把脉';
+    this.pulseType = 'flat';
+    this.pulseSubtitle = '完成一次测量，生成脉象分析';
+    this.pulseDescription = '静心片刻 · 聆听身体';
+    this.constitutionName = '--';
+    this.constitutionDescription = '暂无体质数据';
+    this.dimRatios = [0.05, 0.05, 0.05, 0.05, 0.05, 0.05];
+    this.organRatios = [0.05, 0.05, 0.05, 0.05, 0.05];
+    this._refreshRadars();
+    this._refreshWave();
+    console.log('[HOME][13] empty state');
+  },
+
+  _refreshRadars() {
+    if (!this.radarReady) this.radarReady = true;
+    console.log('[HOME][13A] radar data refreshed without remount');
+  },
+
+  _refreshWave() {
+    if (!this.waveReady) this.waveReady = true;
+    console.log('[HOME][13B] pulse wave data refreshed without remount, type=' + this.pulseType);
+  },
+
+  _startClock() {
+    const tick = () => {
+      const now = new Date();
+      const time = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+      this.clockChars = time.split('');
+    };
+    tick();
+    if (!this._clockTimer) this._clockTimer = setInterval(tick, 10000);
+  },
+
+  _stopClock() {
+    if (this._clockTimer) {
+      clearInterval(this._clockTimer);
+      this._clockTimer = null;
+    }
+  },
+
+  _go(uri, label) {
+    console.log('[HOME][16] navigate ' + label + ' -> ' + uri);
+    router.push({
+      uri,
+      fail: (data, code) => {
+        console.log('[HOME][17] navigate failed, code=' + code + ', data=' + data);
+      }
+    });
+  },
+
+  goMeasurement() {
+    this._go('pages/measurement', 'measurement');
+  },
+
+  goDimensions() {
+    this._go('pages/dim_showcase', 'dimensions');
+  },
+
+  goOrgans() {
+    this._go('pages/organ_showcase', 'organs');
+  },
+
+  goRecommendations() {
+    this._go('pages/rec_showcase', 'recommendations');
+  },
+
+  goTheory() {
+    this._go('pages/pulse_theory', 'theory');
+  },
+
+  goAbout() {
+    this._go('pages/about', 'about');
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 480px;
+  height: 480px;
+  background-color: #E8DCBE;
+}
+
+.fixed-bg {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 480px;
+  height: 480px;
+}
+
+.scroll {
+  width: 480px;
+  height: 480px;
+  flex-direction: column;
+}
+
+.content {
+  width: 480px;
+  height: 1750px;
+  flex-direction: column;
+  align-items: center;
+  background-color: transparent;
+  padding-top: 22px;
+}
+
+.arc-clock {
+  width: 480px;
+  height: 44px;
+  position: relative;
+  top: -20px;
+  justify-content: center;
+}
+
+.clock-char {
+  width: 22px;
+  height: 42px;
+  text-align: center;
+  font-size: 30px;
+  font-weight: bold;
+  color: rgba(110, 91, 65, 0.72);
+  transform-origin: 11px 21px;
+}
+
+.clock-1 { top: 4px; transform: rotate(-10deg); }
+.clock-2 { top: 1px; transform: rotate(-5deg); }
+.clock-3 { top: -3px; }
+.clock-4 { top: 1px; transform: rotate(5deg); }
+.clock-5 { top: 4px; transform: rotate(10deg); }
+
+.pulse-name {
+  width: 340px;
+  height: 62px;
+  text-align: center;
+  font-size: 50px;
+  color: #B77B22;
+}
+
+.pulse-subtitle {
+  width: 340px;
+  height: 34px;
+  text-align: center;
+  font-size: 22px;
+  color: #8B7658;
+}
+
+.wave-card {
+  width: 390px;
+  height: 190px;
+  flex-direction: column;
+  align-items: center;
+  background-color: #CEC1A5;
+  border-radius: 30px;
+  padding-top: 14px;
+  margin-top: 8px;
+}
+
+.wave-label {
+  width: 320px;
+  height: 28px;
+  text-align: center;
+  font-size: 22px;
+  color: #82653C;
+}
+
+.wave-hint {
+  width: 320px;
+  height: 30px;
+  text-align: center;
+  font-size: 20px;
+  color: #725A38;
+  margin-top: 8px;
+}
+
+.constitution-card {
+  width: 390px;
+  height: 160px;
+  align-items: center;
+  background-color: #D8CCB2;
+  border-radius: 24px;
+  padding-left: 22px;
+  margin-top: 18px;
+}
+
+.gold-mark {
+  width: 7px;
+  height: 112px;
+  background-color: #C38B2E;
+  border-radius: 4px;
+}
+
+.constitution-body {
+  width: 320px;
+  height: 125px;
+  flex-direction: column;
+  padding-left: 18px;
+}
+
+.section-eyebrow {
+  width: 290px;
+  height: 28px;
+  font-size: 21px;
+  color: #947D5A;
+}
+
+.constitution-name {
+  width: 290px;
+  height: 52px;
+  font-size: 40px;
+  color: #8A5A20;
+}
+
+.constitution-desc {
+  width: 290px;
+  height: 45px;
+  font-size: 19px;
+  color: #675037;
+}
+
+.data-card {
+  width: 390px;
+  flex-direction: column;
+  align-items: center;
+  background-color: #D8CCB2;
+  border-radius: 24px;
+  padding: 18px 20px;
+  margin-top: 18px;
+}
+
+.card-head {
+  width: 350px;
+  height: 38px;
+  justify-content: space-between;
+}
+
+.card-title {
+  width: 180px;
+  height: 34px;
+  font-size: 27px;
+  color: #65451F;
+}
+
+.card-more {
+  width: 100px;
+  height: 30px;
+  text-align: right;
+  font-size: 20px;
+  color: #B07A24;
+}
+
+.main-button, .sub-button {
+  width: 390px;
+  border-radius: 43px;
+  font-size: 30px;
+  margin-top: 16px;
+}
+
+.main-button {
+  height: 88px;
+  background-color: #E3A93D;
+  color: #24170A;
+}
+
+.sub-button {
+  height: 78px;
+  background-color: #19362B;
+  color: #F0C260;
+}
+
+.about-button {
+  width: 260px;
+  height: 68px;
+  border-radius: 34px;
+  background-color: #CFC1A5;
+  color: #765026;
+  font-size: 25px;
+  margin-top: 22px;
+}
+
+.disclaimer-card {
+  width: 390px;
+  height: 145px;
+  flex-direction: column;
+  align-items: center;
+  background-color: #D8CCB2;
+  border-radius: 22px;
+  padding-top: 16px;
+  margin-top: 20px;
+}
+
+.disclaimer-title {
+  width: 340px;
+  height: 32px;
+  text-align: center;
+  font-size: 24px;
+  color: #795329;
+}
+
+.disclaimer {
+  width: 340px;
+  height: 88px;
+  text-align: center;
+  font-size: 18px;
+  color: #76654E;
+}
+
+.build-mark {
+  width: 350px;
+  height: 28px;
+  text-align: center;
+  font-size: 16px;
+  color: #A19279;
+  margin-top: 6px;
+}
+</style>

@@ -1,0 +1,57 @@
+<template>
+  <!-- 开屏页只保留品牌识别：纯黑背景、图标和应用名称。 -->
+  <div class="root">
+    <image class="icon" src="/common/maixiang/icon.png"></image>
+    <text class="app-name">脉象</text>
+  </div>
+</template>
+
+<script>
+import router from '@system.router'
+import { Storage } from '../../utils/storage'
+
+const SPLASH_MS = 900; // 首屏图停留时长
+const SYSTEM_FILE = 'system.json'
+
+export default {
+  onInit() {
+    // 停留展示首屏图后再分流
+    setTimeout(() => this._route(), SPLASH_MS);
+  },
+
+  _route() {
+    Storage.get(SYSTEM_FILE, (error, systemData) => {
+      // 文件不存在或读取失败都按首次启动处理，避免进入半初始化状态。
+      if (error || !systemData || systemData.oobe_done !== '1') {
+        router.replace({ uri: 'pages/oobe' });
+        return;
+      }
+
+      router.replace({ uri: 'pages/home' });
+    });
+  }
+}
+</script>
+
+<style>
+.root {
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon {
+  width: 136px;
+  height: 136px;
+}
+
+.app-name {
+  margin-top: 20px;
+  font-size: 34px;
+  color: #E8DCBE;
+  text-align: center;
+}
+</style>

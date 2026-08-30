@@ -1,0 +1,258 @@
+<template>
+  <stack class="root">
+    <swiper class="swiper" index="{{ col }}" loop="false" indicator="true" @change="onChange">
+      <!-- 屏0: 品牌亮相 -->
+      <div class="screen">
+        <image class="bg" src="/common/maixiang/list1.png"></image>
+        <image class="logo" src="/common/maixiang/icon.png"></image>
+        <text class="brand">脉象</text>
+        <div class="brand-line"></div>
+        <text class="slogan">每日一刻 · 聆听身体的声音</text>
+      </div>
+
+      <!-- 屏1: 脉象观察 -->
+      <div class="screen">
+        <image class="bg" src="/common/maixiang/list1.png"></image>
+        <text class="eyebrow">脉象观察</text>
+        <text class="title">三分钟 静心一测</text>
+        <div class="title-line"></div>
+        <div class="card">
+          <div class="feat-row" for="{{ (i, line) in featLines }}" tid="i">
+            <div class="dot"></div>
+            <text class="feat-text">{{ line }}</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- 屏2: 五脏平衡 -->
+      <div class="screen">
+        <image class="bg" src="/common/maixiang/list1.png"></image>
+        <text class="eyebrow">五脏平衡</text>
+        <text class="title">观察平衡趋势</text>
+        <div class="title-line"></div>
+        <div class="card">
+          <div class="organ-row" for="{{ (i, o) in organs }}" tid="i">
+            <text class="organ-n">{{ o.n }}</text>
+            <text class="organ-d">{{ o.d }}</text>
+          </div>
+        </div>
+      </div>
+
+      <!-- 屏3: 开启入口 -->
+      <div class="screen">
+        <image class="bg" src="/common/maixiang/list1.png"></image>
+        <text class="eyebrow">准备就绪</text>
+        <text class="title">开启脉象之旅</text>
+        <div class="title-line"></div>
+        <input type="button" class="btn-gold" value="开始使用" onclick="startApp" />
+        <text class="sub-tip">静心片刻，即刻感受脉息</text>
+      </div>
+    </swiper>
+
+    <!-- 下一步按钮（末屏隐藏，固定在底部） -->
+    <input type="button" class="btn-next" value="下一步" if="{{ col < 3 }}" onclick="next" />
+    <!-- 顶部时间（浮层） -->
+    <div class="clock-layer">
+      <div class="arc-clock">
+        <text class="clock-char clock-1">{{ clockChars[0] }}</text>
+        <text class="clock-char clock-2">{{ clockChars[1] }}</text>
+        <text class="clock-char clock-3">{{ clockChars[2] }}</text>
+        <text class="clock-char clock-4">{{ clockChars[3] }}</text>
+        <text class="clock-char clock-5">{{ clockChars[4] }}</text>
+      </div>
+    </div>
+  </stack>
+</template>
+
+<script>
+import router from '@system.router'
+import { Storage } from '../../utils/storage'
+
+export default {
+  private: {
+    col: 0,
+    featLines: [
+      '静坐片刻，记录心率变化',
+      '十四种脉象，规则化解读',
+      '六维指标，观察变化趋势',
+      '融汇脉学，生成科普参考',
+    ],
+    organs: [
+      { n: '心', d: '主血脉，藏神明' },
+      { n: '肝', d: '主疏泄，藏血' },
+      { n: '脾', d: '主运化，统血' },
+      { n: '肺', d: '主气司呼吸' },
+      { n: '肾', d: '主藏精，主水' },
+    ],
+    clockChars: ['-', '-', ':', '-', '-']
+  },
+
+  onInit() {
+    this._clockTimer = null;
+    this._startClock();
+  },
+
+  onShow() {
+    this._startClock();
+  },
+
+  onHide() {
+    this._stopClock();
+  },
+
+  onDestroy() {
+    this._stopClock();
+  },
+
+  _startClock() {
+    const tick = () => {
+      const now = new Date();
+      const time = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+      this.clockChars = time.split('');
+    };
+    tick();
+    if (!this._clockTimer) this._clockTimer = setInterval(tick, 10000);
+  },
+
+  _stopClock() {
+    if (this._clockTimer) {
+      clearInterval(this._clockTimer);
+      this._clockTimer = null;
+    }
+  },
+
+  onChange(e) {
+    this.col = e.index;
+  },
+
+  next() {
+    if (this.col < 3) this.col = this.col + 1;
+  },
+
+  startApp() {
+    // OOBE 标记与业务记录统一使用 @system.file，避开 Vela 4.0
+    // 上 @system.storage 的持久化不稳定问题。
+    Storage.patch('system.json', {
+      oobe_done: '1'
+    }, (error) => {
+      if (error) {
+        console.log('[OOBE-FILE] write failed: ' + JSON.stringify(error));
+        return;
+      }
+
+      console.log('[OOBE-FILE] write success');
+      router.replace({ uri: 'pages/home' });
+    });
+  }
+}
+</script>
+
+<style>
+.root {
+  width: 100%;
+  height: 100%;
+}
+
+.swiper {
+  width: 100%;
+  height: 100%;
+  indicator-selected-color: #C0A050;
+  indicator-color: #C6B896;
+  indicator-size: 9px;
+}
+
+.clock-layer {
+  position: absolute;
+  left: 0px;
+  top: 14px;
+  width: 480px;
+  height: 44px;
+}
+
+.screen {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  background-color: #E8DCBE;
+  padding-top: 46px;
+}
+
+.arc-clock {
+  width: 480px;
+  height: 44px;
+  position: relative;
+  top: 0px;
+  justify-content: center;
+}
+
+.clock-char { width: 22px; height: 42px; text-align: center; font-size: 30px; font-weight: bold; color: rgba(110, 91, 65, 0.72); transform-origin: 11px 21px; }
+.clock-1 { top: 4px; transform: rotate(-10deg); }
+.clock-2 { top: 1px; transform: rotate(-5deg); }
+.clock-3 { top: -3px; }
+.clock-4 { top: 1px; transform: rotate(5deg); }
+.clock-5 { top: 4px; transform: rotate(10deg); }
+
+.bg {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 480px;
+  height: 480px;
+}
+
+/* 屏0 品牌 */
+.logo { width: 120px; height: 120px; margin-top: 50px; border-radius: 28px; }
+.brand { font-size: 48px; color: #B8860B; margin-top: 24px; }
+.brand-line { width: 56px; height: 3px; border-radius: 2px; background-color: #C0A050; margin-top: 14px; }
+.slogan { font-size: 23px; color: #5A4632; margin-top: 16px; }
+
+/* 编辑式标题 */
+.eyebrow { font-size: 20px; color: #9C8560; }
+.title { font-size: 38px; color: #8A5A20; margin-top: 6px; }
+.title-line { width: 46px; height: 3px; border-radius: 2px; background-color: #C0A050; margin-top: 12px; margin-bottom: 20px; }
+
+.card {
+  width: 374px;
+  background-color: #D8CCB2;
+  border-radius: 22px;
+  flex-direction: column;
+  padding: 20px 22px;
+}
+
+/* 屏1 特性行 */
+.feat-row { align-items: center; height: 42px; }
+.dot { width: 8px; height: 8px; border-radius: 4px; background-color: #C0A050; margin-right: 14px; }
+.feat-text { font-size: 23px; color: #5A4632; }
+
+/* 屏2 五脏行 */
+.organ-row { align-items: center; height: 40px; }
+.organ-n { width: 52px; font-size: 30px; color: #8A5A20; }
+.organ-d { font-size: 22px; color: #5A4632; }
+
+.sub-tip { font-size: 19px; color: #9C8560; margin-top: 16px; }
+
+/* 屏4 CTA */
+.btn-gold {
+  width: 288px;
+  height: 82px;
+  border-radius: 41px;
+  background-color: #C0A050;
+  color: #1A1206;
+  font-size: 28px;
+  margin-top: 20px;
+}
+
+/* 固定"下一步" */
+.btn-next {
+  position: absolute;
+  left: 155px;
+  bottom: 30px;
+  width: 170px;
+  height: 66px;
+  border-radius: 33px;
+  background-color: #2A2018;
+  color: #C0A050;
+  font-size: 26px;
+}
+</style>
