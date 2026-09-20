@@ -27,8 +27,9 @@
 - `quickapp/maixiang/src/pages/`：开屏、首次引导、主页、测量和专题展示页面。
 - `quickapp/maixiang/src/components/`：脉形图和雷达图组件。
 - `quickapp/maixiang/src/utils/`：健康接口、统计计算、诊断规则和文件存储模块。
-- `quickapp/maixiang/docs/`：开发日志、算法边界、隐私与原创性材料。
-- `logs/`：按官方采集器格式提交的 AI Coding 日志。
+- `quickapp/maixiang/docs/`：开发日志、隐私说明与 openvela 平台适配经验索引。
+- `skills/openvela-quickapp-watch-ui/`：沉淀的 Agent Skill（openvela 快应用手表端图形与 UI 适配）。
+- `logs/`：AI Coding 会话日志（Qoder 原始记录）。
 - `contest2026_305_Zerv.xml`：将 QuickApp 映射到 openvela 工程的 repo manifest。
 
 ## 五、运行方式
@@ -73,7 +74,7 @@ service.health 心率样本
 
 AI 辅助参与了需求拆解、Zepp OS 到 openvela 的平台差异评估、QuickApp 页面迁移、健康接口接入、圆屏 UI 适配、存储竞态排查、兼容性检查、测试验证和文档整理。功能取舍、平台验证、结果审核和提交由开发者完成。
 
-符合官方格式的 AI Coding 会话日志提交在 `logs/` 目录；日志安装、导出、校验和提交方式以官方《AI Coding 日志归集与提交手册》为准。
+使用的 AI 编程工具为 **Qoder**。由于 Qoder 不在赛事采集器的支持列表内，且其会话导出为加密数据，经组委会同意，本仓库 `logs/` 目录提交的是 Qoder 本地保存的**原始会话记录（transcript）**，原样复制、未作任何修改；格式说明见 `logs/README.md`。
 
 ## 八、已知限制与真实性声明
 
@@ -92,10 +93,10 @@ AI 辅助参与了需求拆解、Zepp OS 到 openvela 的平台差异评估、Qu
 - 目标分支：`dev-ai-contest-2026`
 - 代码只放在本队仓库的 `quickapp/maixiang/` 内，不修改 openvela 公共仓。
 - 代码提交通过 fork、Pull Request 和最终 merge 完成。
-- 首次提交 PR 前，使用报名时的 GitHub 账号签署 openvela CLA。
-- 提交前删除官方示例日志，并将真实日志按 `logs/<github_login>/...` 格式加入仓库。
+- 提交 PR 前，使用报名时的 GitHub 账号签署 openvela CLA。
+- AI Coding 日志存放在 `logs/tiqwq/`；Agent Skill 存放在 `skills/openvela-quickapp-watch-ui/`。
 - 作品介绍、演示视频和仓库地址按赛事表单要求提交；截止时间以官方公告为准。
 
 ## 十、许可与来源
 
-项目采用 Apache License 2.0。第三方来源、素材说明和迁移背景见 `quickapp/maixiang/NOTICE`；开发记录、算法边界、隐私说明和原创性材料见 `quickapp/maixiang/docs/`。
+项目采用 Apache License 2.0。第三方来源、素材说明和迁移背景见 `quickapp/maixiang/NOTICE`；开发记录与隐私说明见 `quickapp/maixiang/docs/`；openvela 平台适配经验见 `skills/openvela-quickapp-watch-ui/`。

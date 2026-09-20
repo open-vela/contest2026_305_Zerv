@@ -6,7 +6,7 @@
 
 ## 项目特点
 
-- openvela 圆屏快应用原生界面
+- openvela 圆屏快应用原生界面（480×480，`designWidth` 480）
 - 设备端心率采样、规则分析与文件持久化
 - 六维脉象与五脏平衡雷达图
 - 脉象科普、结果解读与养生参考
@@ -15,16 +15,18 @@
 
 ## 技术亮点
 
-- **串行队列存储**：基于 Promise 链的文件 I/O 队列，避免并发写入导致数据损坏
-- **结构化错误处理**：所有存储操作返回 `(error, value)` 元组，调用方可区分网络异常、配额超限等场景
-- **脉象诊断引擎**：24 节气时间加权 + 滑动窗口统计，支持平脉/浮脉/沉脉/迟脉/数脉五类基础脉象识别
-- **六维雷达图**：深度、速率、节律、力度、宽度、稳定性六维脉象可视化
-- **五脏平衡模型**：基于脉象特征的肝/心/脾/肺/肾五行属性映射与平衡分析
+- **串行队列存储**：基于回调链的文件 I/O 队列，按文件名串行化读写，避免并发写入导致数据损坏
+- **内存写穿缓存**：写操作先落内存并立即回调、文件异步持久化，读操作内存命中直接返回，消除「写完立即读却读到旧数据」的竞态
+- **脉象规则引擎**：六维分类器 → 十四脉（平/浮/沉/迟/数/滑/涩/虚/实/弦/细/洪/缓/结代）加权匹配 → 体质判定 → 五脏评分 → 养生建议
+- **六维雷达图**：速率、节律、力度、宽度、紧张度、RSA 六个维度可视化
+- **五脏平衡模型**：由六维分值加权得到心/肝/脾/肺/肾五个评分，映射为「和/平/虚/亏」四档状态
+- **无 canvas 的图形方案**：静态几何图形用 Node 脚本预渲染 PNG，动态数据多边形用绝对定位圆点阵
+
 ## 技术边界
 
 - 当前输入为 `service.health` 提供的心率采样值，不读取原始 PPG 波形。
 - RR 间隔由心率采样换算，用于展示性统计，不等同于医疗设备提供的逐搏 RR 间期。
-- “脉象、体质、五脏平衡”等结果来自本地经验规则，不是经过临床验证的诊断结论。
+- 「脉象、体质、五脏平衡」等结果来自本地经验规则，不是经过临床验证的诊断结论。
 - 参赛版不包含付费激活、体验限制或商业服务端。
 
 ## 开发与构建
@@ -42,35 +44,42 @@ npm run build
 npm run start
 ```
 
+构建成功后会生成包名为 `com.maixiang.pulse` 的调试 RPK。
+
 ## 项目结构
 
-```
+```text
 src/
-├── app.ux              # 应用入口
+├── app.ux                  # 应用入口
+├── manifest.json           # 包名 / 路由 / 权限 / designWidth
 ├── pages/
-│   ├── home/           # 首页：快速测量入口
-│   ├── measurement/    # 测量页：心率采集与实时展示
-│   ├── result/         # 结果页：脉象诊断与六维雷达图
-│   ├── history/        # 历史记录列表
-│   ├── record_detail/  # 单条记录详情
-│   ├── pulse_tutorial/ # 脉象科普教程
-│   ├── organ_showcase/ # 五脏平衡展示
-│   ├── dim_showcase/   # 六维指标展示
-│   └── settings/       # 设置页
+│   ├── splash/             # 开屏，分流到引导页或主页
+│   ├── oobe/               # 首次使用引导
+│   ├── home/               # 主页：状态、入口、雷达图概览
+│   ├── measurement/        # 测量页：心率订阅与倒计时
+│   ├── dim_showcase/       # 六维指标展示
+│   ├── organ_showcase/     # 五脏平衡展示
+│   ├── rec_showcase/       # 养生参考
+│   ├── pulse_explain/      # 结果解读
+│   ├── pulse_theory/       # 脉象科普
+│   └── about/              # 关于与免责声明
 ├── components/
-│   ├── radar_chart.ux  # 雷达图组件
-│   └── ...
-└── utils/
-    ├── storage.js            # 串行队列存储引擎
-    ├── hrv_storage_manager.js # HRV 数据管理
-    ├── pulse_diagnosis.js    # 脉象诊断算法
-    ├── pulse_utils.js        # 脉象工具函数
-    ├── strings.js            # 文案常量
-└── ...
+│   ├── radar_chart.ux      # 雷达图组件（纯渲染，父算子渲）
+│   └── pulse_wave.ux       # 脉形波组件
+├── utils/
+│   ├── health.js           # service.health 封装
+│   ├── hrv_calc.js         # 统计指标计算
+│   ├── pulse_diagnosis.js  # 经验规则引擎
+│   ├── pulse_shape.js      # 脉形波点阵生成
+│   ├── storage.js          # @system.file 串行队列存储
+│   ├── hrv_storage_manager.js  # 按日归档与 14 天保留策略
+│   └── strings.js          # 文案字典
+└── common/maixiang/        # 背景图、雷达网格、脉形图等资源
 ```
+
 ## 开源与来源
 
-本项目采用 Apache License 2.0。第三方工程结构、素材、AI 生成内容与代码来源说明见 [NOTICE](NOTICE)，开发过程见 [docs/DEV_LOG.md](docs/DEV_LOG.md)，原创性、相关工作和算法边界见 [docs/originality](docs/originality/)。
+本项目采用 Apache License 2.0。第三方工程结构、素材、AI 生成内容与代码来源说明见 [NOTICE](NOTICE)，开发过程见 [docs/DEV_LOG.md](docs/DEV_LOG.md)，隐私与健康数据处理说明见 [docs/PRIVACY.md](docs/PRIVACY.md)，openvela 平台适配经验见 [docs/SKILL_vela_quickapp.md](docs/SKILL_vela_quickapp.md) 与仓库根目录 `skills/openvela-quickapp-watch-ui/`。
 
 ## 免责声明
 

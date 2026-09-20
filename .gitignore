@@ -14,5 +14,6 @@ dist/
 .reasonix/
 .mimocode/
 .temp_*/
+.workbuddy-ai/
 
 # Never ignore logs/: official AI Coding logs must be committed.
