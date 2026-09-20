@@ -1,0 +1,174 @@
+{
+  "schema_version": "1.0",
+  "team_id": "contest2026_305_Zerv",
+  "github_login": "tiqwq",
+  "generator": "backfill-qoder@qoder",
+  "sessions": [
+    {
+      "session_id": "89d48e7f-ed4a-4ec5-86d0-72cdec6bd1e7",
+      "tool": "qoder",
+      "started_at": "2026-07-26T18:51:34.3570576Z",
+      "last_event_at": "2026-07-26T19:11:50.752288Z",
+      "event_count": 80,
+      "file_path": "logs/tiqwq/2026-07-26/qoder__89d48e7f-ed4a-4ec5-86d0-72cdec6bd1e7.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "742d85bf4a779e0c0dd84f2a679cc128b4dc84dfb2e853d94fe0f2ab14a1716b",
+        "main_size": 216511,
+        "captured_at": "2026-09-20T15:01:58.983517+00:00"
+      }
+    },
+    {
+      "session_id": "f9506c8f-93d4-4eac-ae7a-22322973052c",
+      "tool": "qoder",
+      "started_at": "2026-07-26T18:52:01.4082956Z",
+      "last_event_at": "2026-07-26T18:55:34.5238341Z",
+      "event_count": 96,
+      "file_path": "logs/tiqwq/2026-07-26/qoder__f9506c8f-93d4-4eac-ae7a-22322973052c.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "9ac52a42a475ce76ca06206cae1543c58c224ef14fbd88d0a26fbe355c08254e",
+        "main_size": 468495,
+        "captured_at": "2026-09-20T15:01:59.028378+00:00"
+      }
+    },
+    {
+      "session_id": "06901374-49fa-4f84-b09c-30f7a6222bb9",
+      "tool": "qoder",
+      "started_at": "2026-07-27T18:15:08.5116181Z",
+      "last_event_at": "2026-07-27T18:55:22.7020093Z",
+      "event_count": 213,
+      "file_path": "logs/tiqwq/2026-07-27/qoder__06901374-49fa-4f84-b09c-30f7a6222bb9.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "b26ee74b84aa96d1490ec42933a40888b6d6ede74581ceeda9fee87e69904573",
+        "main_size": 450644,
+        "captured_at": "2026-09-20T15:01:59.066715+00:00"
+      }
+    },
+    {
+      "session_id": "1b58bacb-dfe9-48bf-8190-57647b5eaa3e",
+      "tool": "qoder",
+      "started_at": "2026-07-26T19:13:41.0265264Z",
+      "last_event_at": "2026-07-26T19:27:02.802777Z",
+      "event_count": 94,
+      "file_path": "logs/tiqwq/2026-07-26/qoder__1b58bacb-dfe9-48bf-8190-57647b5eaa3e.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "339b9bb49cc204d8b4fe1a60af8e4f572841ec451c3c11ada11cee9c87781103",
+        "main_size": 353269,
+        "captured_at": "2026-09-20T15:01:59.103521+00:00"
+      }
+    },
+    {
+      "session_id": "096e1cd2-4be6-4d4f-818c-963815496bfe",
+      "tool": "qoder",
+      "started_at": "2026-07-28T07:08:33.9453603Z",
+      "last_event_at": "2026-07-28T08:01:32.7200212Z",
+      "event_count": 232,
+      "file_path": "logs/tiqwq/2026-07-28/qoder__096e1cd2-4be6-4d4f-818c-963815496bfe.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "7deeb91eaf1bc659c3d0fa0f24500c2125b3fd0171b6d92a3e698b095375e03f",
+        "main_size": 530757,
+        "captured_at": "2026-09-20T15:01:59.144184+00:00"
+      }
+    },
+    {
+      "session_id": "0e0cfc29-9989-430c-910f-8fd1f9b87ca1",
+      "tool": "qoder",
+      "started_at": "2026-07-28T07:53:57.8175049Z",
+      "last_event_at": "2026-07-28T07:54:21.8266824Z",
+      "event_count": 32,
+      "file_path": "logs/tiqwq/2026-07-28/qoder__0e0cfc29-9989-430c-910f-8fd1f9b87ca1.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "f7ba83705067eda1b9d3922bef062d2503d62c70f0537ac16d94e284d2106e1e",
+        "main_size": 184602,
+        "captured_at": "2026-09-20T15:01:59.176687+00:00"
+      }
+    },
+    {
+      "session_id": "35e75012-78d5-45ea-9548-dc5b2711a53e",
+      "tool": "qoder",
+      "started_at": "2026-07-27T17:44:02.6784486Z",
+      "last_event_at": "2026-07-28T06:30:29.7721112Z",
+      "event_count": 425,
+      "file_path": "logs/tiqwq/2026-07-27/qoder__35e75012-78d5-45ea-9548-dc5b2711a53e.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "8f30d521a98d16089a7b9112f56ebfe88eabeae70dad8f7522fd95d2761d6296",
+        "main_size": 1132235,
+        "captured_at": "2026-09-20T15:01:59.228441+00:00"
+      }
+    },
+    {
+      "session_id": "8a724be5-e8c7-437f-8efb-8d61f9567ce8",
+      "tool": "qoder",
+      "started_at": "2026-07-28T07:08:56.4528066Z",
+      "last_event_at": "2026-07-28T07:10:00.027707Z",
+      "event_count": 40,
+      "file_path": "logs/tiqwq/2026-07-28/qoder__8a724be5-e8c7-437f-8efb-8d61f9567ce8.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "2401dc16ceb586d49fc2299d6807e3fbb29f0c17820334c4b956eb2d2989f096",
+        "main_size": 160670,
+        "captured_at": "2026-09-20T15:01:59.260937+00:00"
+      }
+    },
+    {
+      "session_id": "e1657b7d-dd8d-4ca2-ae01-e4170db567dd",
+      "tool": "qoder",
+      "started_at": "2026-07-26T07:50:03.9981345Z",
+      "last_event_at": "2026-07-26T07:53:49.7428798Z",
+      "event_count": 84,
+      "file_path": "logs/tiqwq/2026-07-26/qoder__e1657b7d-dd8d-4ca2-ae01-e4170db567dd.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "80ed330859de0dc8da4cca4c23b7bbca99b573e1d072d3de24ae45da4fa56452",
+        "main_size": 364003,
+        "captured_at": "2026-09-20T15:01:59.297547+00:00"
+      }
+    },
+    {
+      "session_id": "f637fd62-54a1-4ad3-926b-21f78769cba2",
+      "tool": "qoder",
+      "started_at": "2026-07-26T07:50:08.187449Z",
+      "last_event_at": "2026-07-26T07:51:13.0109149Z",
+      "event_count": 54,
+      "file_path": "logs/tiqwq/2026-07-26/qoder__f637fd62-54a1-4ad3-926b-21f78769cba2.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "9f2403a8184d25784ed7acb0837dac785c3920e15f023ad57a4d614640d9c6b1",
+        "main_size": 133427,
+        "captured_at": "2026-09-20T15:01:59.329071+00:00"
+      }
+    },
+    {
+      "session_id": "fded8287-0ac6-4507-9da9-e1e795820a42",
+      "tool": "qoder",
+      "started_at": "2026-07-26T07:49:18.4164037Z",
+      "last_event_at": "2026-07-26T18:41:52.1835722Z",
+      "event_count": 1537,
+      "file_path": "logs/tiqwq/2026-07-26/qoder__fded8287-0ac6-4507-9da9-e1e795820a42.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "39cd4eeb33147c1815a9708d1b557687aa88da24e45916ba14f397140ae3f8ba",
+        "main_size": 3647105,
+        "captured_at": "2026-09-20T15:01:59.428124+00:00"
+      }
+    }
+  ],
+  "updated_at": "2026-09-20T15:01:59.944710+00:00"
+}

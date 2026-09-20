@@ -7,30 +7,52 @@
 ```text
 logs/
 └── tiqwq/                                   # 队员 GitHub 用户名
-    ├── fded8287-0ac6-4507-9da9-e1e795820a42.jsonl
-    └── 35e75012-78d5-45ea-9548-dc5b2711a53e.jsonl
+    ├── manifest.json                        # 会话清单（含来源文件 SHA256 完整性记录）
+    ├── 2026-07-26/
+    │   ├── qoder__fded8287-….jsonl          # 核心开发会话（1537 条事件）
+    │   ├── qoder__e1657b7d-….jsonl
+    │   └── …
+    ├── 2026-07-27/
+    │   └── qoder__35e75012-….jsonl          # 界面打磨会话（425 条事件）
+    └── 2026-07-28/
+        └── …
 ```
 
-## 关于日志格式的说明
+共 **11 个会话 / 2887 条事件**，覆盖 2026-07-26 至 2026-07-28。
 
-本作品的开发使用 **Qoder** 作为 AI 编程工具。Qoder 不在赛事采集器的支持列表内（官方支持 Claude Code / AIoT-IDE / OpenCode / Codex），其会话数据经加密后无法按官方 `.jsonl` 事件格式导出。
+## 日志格式
 
-经组委会同意，本目录提交的是 **Qoder 本地保存的原始会话记录（transcript）**，**原样复制、未作任何修改**：
+每条事件一行 JSON，字段符合赛事 `schema/event.schema.json`（v1.0）：
 
-- 每个文件对应一次完整会话，文件名为会话 ID；
-- 每行一个 JSON 对象，字段为 Qoder 原生格式（`type` / `sessionId` / `uuid` / `timestamp` / `cwd` / `message`），
-  与官方 `event.schema.json` 的字段命名不同，其中 `message.content` 的块类型
-  （`text` / `thinking` / `tool_use` / `tool_result`）与 Claude Code transcript 同构；
-- 日志正文（用户提问与 AI 回复）为明文，可逐条核验；
-- 未删除、未改写、未补齐任何事件，也未生成官方格式的 `seq` / `schema_version` 等字段。
+```json
+{"schema_version":"1.0","session_id":"…","team_id":"contest2026_305_Zerv",
+ "github_login":"tiqwq","tool":"qoder","seq":0,"ts":"2026-07-26T07:49:18.4164037Z",
+ "role":"user","text":"完整阅读整个项目并且评估移植到vela os的完整性…"}
+```
 
-## 两次会话
+- `seq` 为会话内单调递增序号；
+- `role` 为 `user` / `assistant` / `tool`；
+- 工具调用事件带 `tool_name` / `tool_call_id` / `input` / `output`。
 
-| 文件 | 起始时间 | 时长 | 内容 |
-|---|---|---|---|
-| `fded8287-…jsonl` | 2026-07-26 | 约 11 小时 | 通读 Zepp OS 原版工程 → 评估移植 openvela 完整性 → 完成 Vela 快应用全部页面与算法层的编写 |
-| `35e75012-…jsonl` | 2026-07-28 | 约 13 小时 | 雷达图渲染修复与界面细节打磨 |
+## 关于 Qoder
 
-## 原始来源
+本作品使用 **Qoder** 作为 AI 编程工具。Qoder 的会话 transcript 与 Claude Code 同构，其存储位置为：
 
-Qoder 会话记录存放于本机 `~/.qoder/projects/<工程目录>/transcript/<会话 ID>.jsonl`，本目录中的文件即从该位置复制而来。
+```text
+~/.qoder/projects/<工程目录>/transcript/<会话 ID>.jsonl
+```
+
+日志由赛事日志采集器的 Qoder 适配器（`contest-log-collector`，`--source qoder` 回填模式）从上述原始 transcript 转换生成，**未人工修改任何事件内容**。
+
+原始 transcript 的 SHA256 与字节数已记录在 `manifest.json` 的 `source_integrity` 字段中，可用于核验转换前后的对应关系。
+
+## 校验
+
+本目录已通过赛事官方校验工具 `tools/validate-log.py`：
+
+```text
+Files checked:  11
+Events checked: 2887
+
+✅ ALL OK
+```
