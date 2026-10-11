@@ -21,7 +21,10 @@
         <text class="organ-score" style="color: {{ item.gauge }};">{{ item.scoreText }}</text>
 
         <div class="card">
-          <text class="card-title" style="color: {{ item.tint }};">{{ item.name }} · {{ item.status }}</text>
+          <div class="card-head">
+            <text class="card-title" style="color: {{ item.tint }};">{{ item.name }} · {{ item.status }}</text>
+            <text class="card-more" onclick="openInterpretation(item.key)">查看解读 ></text>
+          </div>
           <div class="sep"></div>
           <text class="card-desc">{{ item.desc }}</text>
         </div>
@@ -31,6 +34,7 @@
 </template>
 
 <script>
+import router from '@system.router'
 import { getText } from '../../utils/strings'
 
 // 布局基准数据；页面仅在有真实测量后的规则结果时展示
@@ -81,6 +85,7 @@ export default {
         statusKey = statusKeyOf(score);
       }
       return {
+        key: d.key,
         name: getText('organ_name_' + d.key),
         scoreText: score.toFixed(1),
         target: Math.round((score / 10) * 100),
@@ -104,6 +109,10 @@ export default {
 
   onChange(e) {
     this._scheduleAnimate(e.index, 180);
+  },
+
+  openInterpretation(key) {
+    router.push({ uri: 'pages/organ_interpretation', key: key });
   },
 
   _scheduleAnimate(idx, delay) {
@@ -208,7 +217,9 @@ export default {
   padding: 16px 20px 18px 20px;
 }
 
+.card-head { width: 310px; flex-direction: row; align-items: center; justify-content: space-between; }
 .card-title { font-size: 28px; }
+.card-more { font-size: 20px; color: #B07A24; }
 .sep { width: 100%; height: 2px; background-color: #C4B594; margin-top: 12px; margin-bottom: 14px; }
 /* 文案本身按两行阅读量精简，完整显示，不做省略截断 */
 .card-desc { width: 310px; font-size: 26px; color: #5A4632; }

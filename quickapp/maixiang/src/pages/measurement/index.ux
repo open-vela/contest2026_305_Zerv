@@ -35,6 +35,7 @@ import brightness from '@system.brightness'
 import health from '@service.health'
 import { HRVCalculator, calcTcmMetrics, calcRsaEiRatio } from '../../utils/hrv_calc'
 import { HrvStorageManager } from '../../utils/hrv_storage_manager'
+import { invalidateBaseline } from '../../utils/baseline_manager'
 
 const DURATION_SEC = 180;
 const SAMPLE_STALE_MS = 8000;
@@ -55,6 +56,7 @@ export default {
     this._clockTimer = null;
     this._startClock();
     this._hrvCalc = new HRVCalculator();
+    this._hrvCalc.duration = DURATION_SEC;
     this._hrvStorage = new HrvStorageManager();
     this._hrvStorage.init(() => {});
     this._countdownTimer = null;
@@ -171,7 +173,7 @@ export default {
     if (!this.isMeasuring) return;
 
     this._receivedSampleCount++;
-    this._hrvCalc.pushBpm(value);
+    this._hrvCalc.pushBpm(value, timeStamp);
     if (!this._measurementStarted) {
       this._measurementStarted = true;
       this.qualityText = '正在采集';
@@ -253,26 +255,31 @@ export default {
     const rr = this._hrvCalc.rrIntervals;
     const tcm = calcTcmMetrics(rr) || {};
     const rsaEiRatio = calcRsaEiRatio(this._hrvCalc.bpmBuffer);
+    const dynamics = this._hrvCalc.calculateDynamics() || {};
+    const signalQuality = this._hrvCalc.calculateSignalQuality();
 
-    // Vela 无全天心率/睡眠历史 API：sdann/sleepScore/hrReserve 置 0，
-    // 规则引擎对 0 值回退为“未知”（中性 5 分），restingHr 回退 mean_hr。
+    // Vela 无全天心率/睡眠/压力 API：sdann/stress/sleepScore/hrReserve 置 0，
+    // 规则引擎 V2 对缺省值回退为中性（missingMetrics 标记），restingHr 回退 medianHr/mean_hr。
     const record = {
+      algorithmVersion: 2,
       metrics: {
         sdnn: metrics.sdnn,
         mean_rr: metrics.mean_rr,
         mean_hr: metrics.mean_hr,
-        patternEntropy: metrics.patternEntropy,
+        patternEntropy: dynamics.patternEntropy || metrics.patternEntropy,
         lfRms: metrics.lfRms,
         vlfRms: metrics.vlfRms,
         sdann: 0,
         stress: 0,
-        restingHr: metrics.mean_hr || 0,
-        hrStability: tcm.hrStability || 0,
+        restingHr: dynamics.medianHr || metrics.mean_hr || 0,
+        hrStability: dynamics.hrStd || tcm.hrStability || 0,
         sdnnSegments: tcm.sdnnSegments || [],
         sleepScore: 0,
         hrReserve: 0,
         rrCount: tcm.rrCount || 0,
         rsaEiRatio: rsaEiRatio || 0,
+        dynamics: dynamics,
+        signalQuality: signalQuality,
         dataQuality: this._hrvCalc.getQuality(),
       },
       timestamp: Date.now()
@@ -286,6 +293,8 @@ export default {
         console.log('[measurement] save failed: ' + JSON.stringify(error));
         return;
       }
+      // 新数据入库 → 基线缓存置脏，下次进页重算一次
+      invalidateBaseline();
       // 使首页缓存失效，返回后重新计算规则结果
       this.$app.$def.globalData.lastDiagnosisTs = 0;
       this.$app.$def.globalData.homeNeedsRefresh = true;

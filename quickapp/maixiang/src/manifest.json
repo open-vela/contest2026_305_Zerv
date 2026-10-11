@@ -45,7 +45,19 @@
       "pages/dim_showcase": {
         "component": "index"
       },
+      "pages/dim_interpretation": {
+        "component": "index"
+      },
       "pages/organ_showcase": {
+        "component": "index"
+      },
+      "pages/organ_interpretation": {
+        "component": "index"
+      },
+      "pages/constitution_showcase": {
+        "component": "index"
+      },
+      "pages/trend": {
         "component": "index"
       },
       "pages/rec_showcase": {

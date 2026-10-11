@@ -7,7 +7,9 @@ export class HRVCalculator {
   constructor() {
     this.rrIntervals = [];
     this.bpmBuffer = [];       // 原始 BPM 序列，用于熵/频段/RSA 计算
+    this.bpmSamples = [];      // { timestamp, bpm }，用于覆盖时长与按真实时间求趋势
     this.isCollecting = false;
+    this.duration = 180;       // 本次测量时长（秒），影响质量分归一化
     this.filterEnabled = true;
     this.FILTER_WINDOW_SIZE = 7;
     this.FILTER_THRESHOLD = 0.35;
@@ -23,8 +25,8 @@ export class HRVCalculator {
 
   bpmToRR(bpm) { return bpm > 0 ? 60000 / bpm : null; }
 
-  // 每收到一条心率样本调用一次
-  pushBpm(bpm) {
+  // 每收到一条心率样本调用一次；ts 为该样本时间戳（毫秒），缺省 0 走 1Hz 回退
+  pushBpm(bpm, ts) {
     if (!this.isCollecting) return false;
     this.rawSampleCount++;
 
@@ -35,6 +37,7 @@ export class HRVCalculator {
     }
 
     this.bpmBuffer.push(value);
+    this.bpmSamples.push({ timestamp: (typeof ts === 'number' && isFinite(ts)) ? ts : 0, bpm: value });
 
     const rr = this.bpmToRR(value);
     if (rr === null) return false;
@@ -78,6 +81,7 @@ export class HRVCalculator {
   reset() {
     this.rrIntervals = [];
     this.bpmBuffer = [];
+    this.bpmSamples = [];
     this.recentValidRR = [];
     this.rawSampleCount = 0;
     this.invalidDataPoints = 0;
@@ -171,6 +175,121 @@ export class HRVCalculator {
     const vlfRms = Math.sqrt(vlfBaseline.reduce((s, v) => s + Math.pow(v - globalMean, 2), 0) / vlfBaseline.length);
 
     return { lfRms, vlfRms };
+  }
+
+  // ── v2 心率动态分析辅助（移植自 Zepp measurement.js） ──
+  percentile(values, p) {
+    if (!values || values.length === 0) return 0;
+    const sorted = values.slice().sort((a, b) => a - b);
+    const pos = (sorted.length - 1) * p;
+    const lo = Math.floor(pos), hi = Math.ceil(pos);
+    if (lo === hi) return sorted[lo];
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+  }
+
+  median(values) { return this.percentile(values, 0.5); }
+
+  // 三点中位数滤波：仅供动态指标分析，原始 BPM 序列始终保留。
+  medianFilter(values) {
+    if (!values || values.length < 3) return (values || []).slice();
+    return values.map((v, i) => {
+      if (i === 0 || i === values.length - 1) return v;
+      return this.median([values[i - 1], v, values[i + 1]]);
+    });
+  }
+
+  calculateDynamics() {
+    const raw = this.bpmBuffer.filter(v => typeof v === 'number' && v >= 35 && v <= 220);
+    if (raw.length < 10) return null;
+    const bpm = this.medianFilter(raw);
+    const meanHr = bpm.reduce((a, b) => a + b, 0) / bpm.length;
+    const medianHr = this.median(bpm);
+    const p10Hr = this.percentile(bpm, 0.10);
+    const p90Hr = this.percentile(bpm, 0.90);
+    const hrStd = Math.sqrt(bpm.reduce((s, v) => s + Math.pow(v - meanHr, 2), 0) / bpm.length);
+    const hrMad = this.median(bpm.map(v => Math.abs(v - medianHr)));
+    const diffs = [];
+    for (let i = 1; i < bpm.length; i++) diffs.push(bpm[i] - bpm[i - 1]);
+    const successiveMad = diffs.length ? this.median(diffs.map(v => Math.abs(v))) : 0;
+    const successiveRms = diffs.length ? Math.sqrt(diffs.reduce((s, v) => s + v * v, 0) / diffs.length) : 0;
+
+    // 使用实际样本时间戳；缺时间戳或非单调时回退 1Hz 序号。
+    const n = bpm.length;
+    const samples = this.bpmSamples.filter(s => s && typeof s.bpm === 'number' && s.bpm >= 35 && s.bpm <= 220);
+    const timed = samples.length === n && samples.every((s, i) => typeof s.timestamp === 'number' && isFinite(s.timestamp) && s.timestamp > 0 && (!i || s.timestamp > samples[i - 1].timestamp));
+    const times = bpm.map((v, i) => timed ? (samples[i].timestamp - samples[0].timestamp) / 1000 : i);
+    const xMean = times.reduce((s, v) => s + v, 0) / n;
+    let numerator = 0, denominator = 0;
+    for (let i = 0; i < n; i++) {
+      numerator += (times[i] - xMean) * (bpm[i] - meanHr);
+      denominator += Math.pow(times[i] - xMean, 2);
+    }
+    const trendSlope = denominator > 0 ? (numerator / denominator) * 60 : 0;
+    const span = times[n - 1];
+    const edgeSeconds = Math.min(30, Math.max(10, span / 4), (span + 1) / 2);
+    const first = bpm.filter((v, i) => times[i] < edgeSeconds);
+    const last = bpm.filter((v, i) => times[i] > span - edgeSeconds);
+    const firstMean = first.length ? first.reduce((a, b) => a + b, 0) / first.length : meanHr;
+    const lastMean = last.length ? last.reduce((a, b) => a + b, 0) / last.length : meanHr;
+
+    return {
+      sampleCount: raw.length,
+      meanHr: +meanHr.toFixed(1),
+      medianHr: +medianHr.toFixed(1),
+      p10Hr: +p10Hr.toFixed(1),
+      p90Hr: +p90Hr.toFixed(1),
+      hrRange90: +(p90Hr - p10Hr).toFixed(1),
+      hrStd: +hrStd.toFixed(2),
+      hrMad: +hrMad.toFixed(2),
+      hrCv: meanHr > 0 ? +(hrStd / meanHr).toFixed(4) : 0,
+      successiveMad: +successiveMad.toFixed(2),
+      successiveRms: +successiveRms.toFixed(2),
+      trendSlope: +trendSlope.toFixed(2),
+      firstLastDelta: +(lastMean - firstMean).toFixed(1),
+      patternEntropy: +this.calculatePatternEntropy(bpm).toFixed(3)
+    };
+  }
+
+  calculateSignalQuality() {
+    const dur = this.duration || 180;
+    const expectedCount = dur;
+    const raw = this.bpmBuffer.filter(v => typeof v === 'number' && v >= 35 && v <= 220);
+    const validCount = raw.length;
+    const validRatio = Math.min(1, validCount / expectedCount);
+    let frozen = 0, jumps = 0;
+    for (let i = 1; i < raw.length; i++) {
+      if (raw[i] === raw[i - 1]) frozen++;
+      if (Math.abs(raw[i] - raw[i - 1]) > 12) jumps++;
+    }
+    const diffCount = Math.max(1, raw.length - 1);
+    const freezeRatio = frozen / diffCount;
+    const jumpRatio = jumps / diffCount;
+    let coverageSeconds = 0;
+    if (this.bpmSamples.length >= 2) {
+      coverageSeconds = Math.min(dur, Math.max(0,
+        (this.bpmSamples[this.bpmSamples.length - 1].timestamp - this.bpmSamples[0].timestamp) / 1000 + 1));
+    } else if (validCount > 0) {
+      coverageSeconds = Math.min(dur, validCount);
+    }
+    // 整数 BPM 连续数秒相同很常见，仅在冻结比例超过 60% 后扣分。
+    const updateScore = 1 - Math.min(1, Math.max(0, freezeRatio - 0.60) / 0.40);
+    const continuityScore = 1 - Math.min(1, jumpRatio / 0.15);
+    const coverageScore = Math.min(1, coverageSeconds / Math.max(1, dur - 10));
+    const score = Math.round(100 * (
+      validRatio * 0.45 + updateScore * 0.20 + continuityScore * 0.20 + coverageScore * 0.15
+    ));
+    const level = score >= 80 ? 'good' : score >= 65 ? 'fair' : 'poor';
+    return {
+      expectedCount,
+      validCount,
+      validRatio: +validRatio.toFixed(3),
+      freezeRatio: +freezeRatio.toFixed(3),
+      jumpRatio: +jumpRatio.toFixed(3),
+      coverageSeconds: +coverageSeconds.toFixed(1),
+      rejectedCount: this.rejectedDataPoints,
+      score,
+      level
+    };
   }
 
   getHrvMetrics() {
