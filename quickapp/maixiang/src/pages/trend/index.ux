@@ -1,0 +1,241 @@
+<template>
+  <stack class="root">
+    <image class="bg" src="/common/maixiang/list1.png"></image>
+    <scroll class="scroll" scroll-y="true">
+      <div class="content">
+
+        <!-- 顶部标题卡 -->
+        <div class="card">
+          <text class="h-title">脉象档案</text>
+          <text class="h-sub">这些日子，你的脉搏在怎么变化</text>
+        </div>
+
+        <!-- 脉象日历卡（对齐 ZOS addCalendarCard：周一起始、有记录日金色放大） -->
+        <div class="card">
+          <text class="c-title">脉象日历</text>
+          <text class="c-sub">本月已记录 {{ recordCount }} 天</text>
+          <div class="wrow" for="{{ (ri, row) in weeks }}" tid="ri">
+            <text class="cell" for="{{ (ci, c) in row }}" tid="ci"
+              style="color: {{ c.color }}; font-size: {{ c.size }}px;">{{ c.label }}</text>
+          </div>
+        </div>
+
+        <!-- 数据不足：诚实提示，不画空图 -->
+        <div class="card" if="{{ days < 2 }}">
+          <text class="note">再多测几天，这里就会画出你自己的脉搏走向。</text>
+        </div>
+
+        <div class="card" if="{{ days >= 2 }}">
+          <text class="c-title">总览</text>
+          <text class="body">{{ summary }}</text>
+        </div>
+
+        <!-- 趋势卡（静息/晨脉）：无 canvas，密集圆点连线 + 正常带 -->
+        <div class="card" if="{{ days >= 2 }}" for="{{ (k, ch) in charts }}" tid="k">
+          <div class="ch-head">
+            <text class="c-title">{{ ch.title }}</text>
+            <div class="ch-right">
+              <text class="ch-latest" style="color: {{ ch.color }};">{{ ch.latest }} 次/分</text>
+              <text class="ch-sub" style="color: {{ ch.subColor }};">{{ ch.sub }}</text>
+            </div>
+          </div>
+          <div class="chart">
+            <div class="band" style="top: {{ ch.bandTop }}px; height: {{ ch.bandH }}px;"></div>
+            <div class="ld" for="{{ (li, p) in ch.line }}" tid="li" style="left: {{ p.x }}px; top: {{ p.y }}px; background-color: {{ ch.color }};"></div>
+            <div class="pd" for="{{ (pi, p) in ch.dots }}" tid="pi" style="left: {{ p.x }}px; top: {{ p.y }}px; background-color: {{ ch.color }};"></div>
+          </div>
+          <div class="ch-foot">
+            <text class="ch-date">{{ ch.firstDate }}</text>
+            <text class="ch-date">{{ ch.lastDate }}</text>
+          </div>
+          <text class="note">{{ ch.note }}</text>
+        </div>
+
+        <!-- 统计块 -->
+        <div class="card" if="{{ days >= 2 }}">
+          <text class="c-title">记录统计</text>
+          <text class="body">{{ stats }}</text>
+        </div>
+
+        <!-- 免责 -->
+        <div class="card">
+          <text class="note">以上均为你个人近期数据的趋势参考，不构成医疗诊断。如有不适请及时就医。</text>
+        </div>
+
+        <text class="foot-space"> </text>
+      </div>
+    </scroll>
+  </stack>
+</template>
+
+<script>
+import { HrvStorageManager } from '../../utils/hrv_storage_manager'
+import { median, mad } from '../../utils/baseline_manager'
+
+const C = {
+  gold: '#8A5A20', text: '#5A4632', dim: '#8A6E4E',
+  resting: '#B8860B', morning: '#5C8C9C', good: '#6B8E5A'
+};
+const CHART_W = 306, CHART_H = 120;
+
+function pad(n) { return n < 10 ? '0' + n : '' + n; }
+function keyOf(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function md(s) { const p = (s || '').split('-'); return p.length === 3 ? (parseInt(p[1], 10) + '/' + parseInt(p[2], 10)) : ''; }
+function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+// 从某天会话记录派生日指标（Vela 无全天心率：以当日最低/最早会话心率近似静息/晨脉）
+function deriveDay(dateStr, recs) {
+  let minHr = Infinity, sumHr = 0, n = 0, morningHr = null, morningTs = Infinity, lastHr = null, lastTs = -1;
+  (recs || []).forEach((r) => {
+    const m = (r && r.metrics) || {};
+    const hr = (m.dynamics && m.dynamics.medianHr) || m.mean_hr || 0;
+    const ts = (r && r.timestamp) || 0;
+    if (hr > 0) { if (hr < minHr) minHr = hr; sumHr += hr; n++; if (ts < morningTs) { morningTs = ts; morningHr = hr; } if (ts > lastTs) { lastTs = ts; lastHr = hr; } }
+  });
+  if (!n) return null;
+  return { date: dateStr, restingHr: Math.round(minHr), morningHr: morningHr != null ? Math.round(morningHr) : null, meanHr: Math.round(sumHr / n), lastHr: lastHr != null ? Math.round(lastHr) : null };
+}
+
+function buildChart(daily, key, color, title, note) {
+  const rows = daily.filter((d) => typeof d[key] === 'number' && d[key] > 0).slice(-7);
+  const n = rows.length;
+  if (n < 2) return null;
+  const values = rows.map((p) => p[key]);
+  let lo = values[0], hi = values[0];
+  values.forEach((v) => { if (v < lo) lo = v; if (v > hi) hi = v; });
+  const med = median(values), madv = mad(values, med);
+  lo = Math.min(lo, med - madv); hi = Math.max(hi, med + madv);
+  if (hi - lo < 1) hi = lo + 1;
+  const span = hi - lo; lo -= span * 0.08; hi += span * 0.08;
+  const mapY = (v) => Math.round(clamp((1 - (v - lo) / (hi - lo)) * CHART_H, 2, CHART_H - 2));
+  const stepX = CHART_W / (n - 1);
+  const dots = values.map((v, i) => ({ x: Math.round(i * stepX), y: mapY(v) }));
+  const line = [];
+  for (let i = 0; i < dots.length - 1; i++) {
+    const a = dots[i], b = dots[i + 1];
+    const steps = Math.max(1, Math.round(Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y)) / 8));
+    for (let k = 0; k <= steps; k++) { const t = k / steps; line.push({ x: Math.round(a.x + (b.x - a.x) * t), y: Math.round(a.y + (b.y - a.y) * t) }); }
+  }
+  const latest = values[n - 1];
+  const d = Math.round(latest - med);
+  return {
+    title: title, note: note, color: color, latest: latest,
+    dots: dots, line: line, bandTop: mapY(med + madv), bandH: Math.max(2, mapY(med - madv) - mapY(med + madv)),
+    firstDate: md(rows[0].date), lastDate: md(rows[n - 1].date),
+    sub: '较你的常值 ' + (d === 0 ? '持平' : (d > 0 ? '高 ' + d : '低 ' + Math.abs(d))),
+    subColor: d < 0 ? C.good : C.dim
+  };
+}
+
+export default {
+  private: {
+    days: 0, recordCount: 0, summary: '', stats: '',
+    weeks: [], charts: []
+  },
+
+  onInit() {
+    const now = new Date();
+    const todayStr = keyOf(now);
+    const storage = new HrvStorageManager();
+    storage.init(() => {
+      storage.getHistoryIndex((index) => {
+        const dates = [];
+        (index || []).forEach((d) => { if (/^\d{4}-\d{2}-\d{2}$/.test(d)) dates.push(d); });
+        if (dates.indexOf(todayStr) < 0) dates.push(todayStr);
+        dates.sort();
+
+        const daily = [];
+        let pending = dates.length;
+        const finish = () => { if (--pending > 0) return; daily.sort((a, b) => a.date < b.date ? -1 : 1); this.render(daily, now); };
+        dates.forEach((dt) => {
+          const cb = (recs) => { const r = deriveDay(dt, recs); if (r) daily.push(r); finish(); };
+          if (dt === todayStr) storage.getTodayData(cb); else storage.getHistoryData(dt, cb);
+        });
+      });
+    });
+  },
+
+  render(daily, now) {
+    this.days = daily.length;
+
+    // ── 日历 ──
+    const year = now.getFullYear(), month = now.getMonth();
+    const have = {}; daily.forEach((d) => { have[d.date] = 1; });
+    const monthPrefix = year + '-' + pad(month + 1) + '-';
+    let cnt = 0; Object.keys(have).forEach((d) => { if (d.indexOf(monthPrefix) === 0) cnt++; });
+    this.recordCount = cnt;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const offset = (new Date(year, month, 1).getDay() + 6) % 7;
+    const blank = { label: '', color: 'transparent', size: 19 };
+    const cells = [];
+    for (let i = 0; i < offset; i++) cells.push(blank);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const on = !!have[monthPrefix + pad(d)];
+      cells.push({ label: String(d), color: on ? C.gold : '#B6A98C', size: on ? 23 : 19 });
+    }
+    while (cells.length % 7 !== 0) cells.push(blank);
+    const weeks = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+    this.weeks = weeks;
+
+    if (this.days < 2) return;
+
+    // ── 总览 ──
+    let summary = '这段时间你记录了 ' + this.days + ' 天。';
+    const rs = daily.filter((d) => d.restingHr > 0);
+    if (rs.length >= 2) {
+      const dv = Math.round(rs[rs.length - 1].restingHr - rs[0].restingHr);
+      const dir = dv < 0 ? '走低' : (dv > 0 ? '走高' : '持平');
+      summary += ' 静息心率整体' + dir + (dv === 0 ? '' : '（' + Math.abs(dv) + ' 次/分）') + '。';
+    }
+    this.summary = summary;
+
+    // ── 趋势卡 ──
+    const charts = [];
+    const rc = buildChart(daily, 'restingHr', C.resting, '静息心率', '静息心率通常越低，代表心肺适能越好；这里只跟你的常值比。');
+    if (rc) charts.push(rc);
+    const mc = buildChart(daily, 'morningHr', C.morning, '晨脉', '清晨刚醒时的脉搏。晨脉沉稳、不浮不躁，是睡得香、养得住的象。');
+    if (mc) charts.push(mc);
+    this.charts = charts;
+
+    // ── 统计 ──
+    const last = daily[daily.length - 1];
+    let s = '共记录 ' + this.days + ' 天';
+    if (last && last.restingHr) s += '；最近一次静息 ' + last.restingHr + ' 次/分';
+    if (last && last.morningHr) s += '，晨脉 ' + last.morningHr + ' 次/分';
+    s += '。';
+    this.stats = s;
+  }
+}
+</script>
+
+<style>
+.root { width: 480px; height: 480px; background-color: #E8DCBE; }
+.bg { position: absolute; left: 0px; top: 0px; width: 480px; height: 480px; }
+.scroll { width: 480px; height: 480px; flex-direction: column; }
+.content { width: 480px; flex-direction: column; align-items: center; padding-top: 40px; }
+
+.card { width: 390px; flex-direction: column; background-color: #D8CCB2; border-radius: 22px; padding: 18px 20px; margin-top: 14px; }
+.h-title { font-size: 38px; color: #8A5A20; }
+.h-sub { font-size: 24px; color: #6E5533; margin-top: 4px; }
+.c-title { font-size: 26px; color: #8A5A20; }
+.c-sub { font-size: 20px; color: #8A6E4E; margin-top: 2px; margin-bottom: 6px; }
+.body { font-size: 23px; color: #5A4632; margin-top: 6px; }
+.note { font-size: 18px; color: #8A6E4E; margin-top: 8px; }
+
+.wrow { width: 350px; flex-direction: row; }
+.cell { width: 50px; height: 40px; text-align: center; }
+
+.ch-head { width: 350px; flex-direction: row; align-items: center; justify-content: space-between; }
+.ch-right { flex-direction: column; align-items: flex-end; }
+.ch-latest { font-size: 26px; }
+.ch-sub { font-size: 16px; }
+.chart { position: relative; width: 306px; height: 120px; margin-top: 8px; }
+.band { position: absolute; left: 0px; width: 306px; background-color: rgba(191, 174, 134, 0.45); border-radius: 6px; }
+.ld { position: absolute; width: 4px; height: 4px; border-radius: 2px; }
+.pd { position: absolute; width: 8px; height: 8px; border-radius: 4px; }
+.ch-foot { width: 306px; flex-direction: row; justify-content: space-between; margin-top: 4px; }
+.ch-date { font-size: 16px; color: #8A6E4E; }
+
+.foot-space { width: 390px; height: 30px; }
+</style>

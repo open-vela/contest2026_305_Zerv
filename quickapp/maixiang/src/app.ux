@@ -21,6 +21,7 @@ export default {
   globalData: {
     lastDiagnosis: null,
     lastDiagnosisTs: 0,
+    lastMetrics: null,
     homeNeedsRefresh: false
   }
 }

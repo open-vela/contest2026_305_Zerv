@@ -1,0 +1,172 @@
+<template>
+  <stack class="root">
+    <image class="bg" src="/common/maixiang/list1.png"></image>
+
+    <div class="empty" if="{{ !hasData }}">
+      <text class="empty-t">暂无脉象数据</text>
+    </div>
+
+    <scroll class="scroll" if="{{ hasData }}" scroll-y="true">
+      <div class="content">
+        <div class="head">
+          <stack class="arc-box">
+            <progress class="arc-bg" type="arc" percent="100"></progress>
+            <progress class="arc-fg" type="arc" percent="{{ pct }}" style="color: {{ gauge }};"></progress>
+          </stack>
+          <text class="arc-score" style="color: {{ gauge }};">{{ scoreText }}</text>
+          <text class="arc-label">{{ scoreLabel }}</text>
+          <text class="arc-name">{{ curName }}</text>
+        </div>
+
+        <!-- 普通卡片 -->
+        <div class="card" for="{{ (i, s) in sections }}" tid="i">
+          <div class="card-bar"></div>
+          <div class="card-body">
+            <text class="card-title">{{ s.title }}</text>
+            <text class="card-line">{{ s.body }}</text>
+          </div>
+        </div>
+
+        <!-- 九种体质一览 -->
+        <div class="card">
+          <div class="card-bar"></div>
+          <div class="card-body">
+            <text class="card-title">{{ allTitle }}</text>
+            <div class="row" for="{{ (j, r) in allList }}" tid="j" style="background-color: {{ r.bg }};">
+              <div class="dot" style="background-color: {{ r.color }};"></div>
+              <div class="row-text">
+                <text class="row-name" style="color: {{ r.nameColor }};">{{ r.name }}</text>
+                <text class="row-desc">{{ r.desc }}</text>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <text class="foot-space"> </text>
+      </div>
+    </scroll>
+  </stack>
+</template>
+
+<script>
+import { getText } from '../../utils/strings'
+import { overallRelative } from '../../utils/relative_text'
+
+const CONST_TYPES = [
+  { type: 'balanced', nameKey: 'const_name_balanced', descKey: 'const_desc_balanced', color: '#C0A050' },
+  { type: 'qi_deficiency', nameKey: 'const_name_qi_def', descKey: 'const_desc_qi_def', color: '#8B7355' },
+  { type: 'yang_deficiency', nameKey: 'const_name_yang_def', descKey: 'const_desc_yang_def', color: '#6B8E9B' },
+  { type: 'yin_deficiency', nameKey: 'const_name_yin_def', descKey: 'const_desc_yin_def', color: '#C47A3A' },
+  { type: 'qi_stagnation', nameKey: 'const_name_qi_stag', descKey: 'const_desc_qi_stag', color: '#7B6B8A' },
+  { type: 'blood_stasis', nameKey: 'const_name_blood_stasis', descKey: 'const_desc_blood_stasis', color: '#8B4049' },
+  { type: 'phlegm_damp', nameKey: 'const_name_phlegm_damp', descKey: 'const_desc_phlegm_damp', color: '#6B7B5A' },
+  { type: 'damp_heat', nameKey: 'const_name_damp_heat', descKey: 'const_desc_damp_heat', color: '#B8860B' },
+  { type: 'allergic', nameKey: 'const_name_allergic', descKey: 'const_desc_allergic', color: '#7B8B9B' },
+];
+
+const CARE_MAP = {
+  balanced: ['constitution_care_balanced_1', 'constitution_care_balanced_2'],
+  qi_deficiency: ['constitution_care_qi_def_1', 'constitution_care_qi_def_2', 'constitution_care_qi_def_3'],
+  yang_deficiency: ['constitution_care_yang_def_1', 'constitution_care_yang_def_2', 'constitution_care_yang_def_3'],
+  yin_deficiency: ['constitution_care_yin_def_1', 'constitution_care_yin_def_2', 'constitution_care_yin_def_3'],
+  qi_stagnation: ['constitution_care_qi_stag_1', 'constitution_care_qi_stag_2', 'constitution_care_qi_stag_3'],
+  blood_stasis: ['constitution_care_blood_stasis_1', 'constitution_care_blood_stasis_2', 'constitution_care_blood_stasis_3'],
+  phlegm_damp: ['constitution_care_phlegm_damp_1', 'constitution_care_phlegm_damp_2', 'constitution_care_phlegm_damp_3'],
+  damp_heat: ['constitution_care_damp_heat_1', 'constitution_care_damp_heat_2', 'constitution_care_damp_heat_3'],
+  allergic: ['constitution_care_allergic_1', 'constitution_care_allergic_2', 'constitution_care_allergic_3'],
+};
+
+function gaugeColor(score) {
+  if (score >= 0.7) return '#C09040';
+  if (score >= 0.5) return '#B8860B';
+  if (score >= 0.3) return '#B5651D';
+  return '#A23B2E';
+}
+
+export default {
+  private: {
+    hasData: false, pct: 0, scoreText: '0.00', gauge: '#B8860B', scoreLabel: '', curName: '',
+    allTitle: '', sections: [], allList: []
+  },
+
+  onInit() {
+    const diag = this.$app.$def.globalData.lastDiagnosis;
+    const metrics = this.$app.$def.globalData.lastMetrics || {};
+    const cur = diag && diag.constitution;
+    if (!cur) return;
+
+    this.hasData = true;
+    this.scoreText = (cur.score || 0).toFixed(2);
+    this.gauge = gaugeColor(cur.score || 0);
+    this.pct = Math.max(0, Math.min(100, Math.round((cur.score || 0) * 100)));
+    this.scoreLabel = getText('constitution_score_label');
+    this.curName = cur.name || '--';
+    this.allTitle = getText('constitution_section_all');
+
+    // 你的体质解读
+    const reading = [];
+    reading.push((cur.name || '') + getText('constitution_is'));
+    if (cur.desc) reading.push(cur.desc);
+    if (cur.confidence != null) {
+      reading.push(getText('constitution_confidence') + '：' + Math.round((cur.confidence || 0) * 100) + '%');
+    }
+    const rel = overallRelative(metrics);
+    if (rel) reading.push(rel);
+
+    const careKeys = CARE_MAP[cur.type] || [];
+    const care = careKeys.map(function (k) { return getText(k); }).filter(Boolean);
+
+    this.sections = [
+      { title: getText('constitution_section_method'), body: this.bullets([getText('constitution_method_1'), getText('constitution_method_2'), getText('constitution_method_3')]) },
+      { title: getText('constitution_section_yours'), body: this.bullets(reading) },
+      { title: getText('constitution_section_care'), body: this.bullets(care) },
+      { title: getText('constitution_section_disclaimer'), body: this.bullets([getText('constitution_disclaimer_1'), getText('constitution_disclaimer_2')]) },
+    ];
+
+    this.allList = CONST_TYPES.map(function (t) {
+      const isCur = t.type === cur.type;
+      return {
+        name: getText(t.nameKey),
+        desc: getText(t.descKey),
+        color: t.color,
+        isCurrent: isCur,
+        bg: isCur ? 'rgba(192,160,80,0.18)' : 'transparent',
+        nameColor: isCur ? '#8A5A20' : '#5A4632'
+      };
+    });
+  },
+
+  bullets(lines) {
+    const arr = (lines || []).filter(function (s) { return s; });
+    if (!arr.length) return '·';
+    return arr.map(function (l) { return '· ' + l; }).join('\n');
+  }
+}
+</script>
+
+<style>
+.root { width: 480px; height: 480px; }
+.bg { position: absolute; left: 0px; top: 0px; width: 480px; height: 480px; }
+.empty { width: 480px; height: 480px; align-items: center; justify-content: center; }
+.empty-t { font-size: 32px; color: #8A5A20; }
+.scroll { width: 480px; height: 480px; flex-direction: column; }
+.content { width: 480px; flex-direction: column; align-items: center; }
+.head { position: relative; width: 480px; height: 200px; overflow: hidden; }
+.arc-box { position: absolute; left: 5px; top: 12px; width: 470px; height: 470px; }
+.arc-bg { width: 470px; height: 470px; color: #B6A98C; stroke-width: 20px; start-angle: 290deg; total-angle: 140deg; }
+.arc-fg { width: 470px; height: 470px; stroke-width: 20px; start-angle: 290deg; total-angle: 140deg; }
+.arc-score { position: absolute; left: 0px; top: 60px; width: 480px; text-align: center; font-size: 46px; }
+.arc-label { position: absolute; left: 0px; top: 114px; width: 480px; text-align: center; font-size: 18px; color: #B6A98C; }
+.arc-name { position: absolute; left: 40px; top: 144px; width: 400px; text-align: center; font-size: 30px; color: #8A5A20; }
+.card { width: 390px; flex-direction: row; align-items: flex-start; background-color: #D8CCB2; border-radius: 22px; padding: 16px 18px; margin-top: 8px; }
+.card-bar { width: 6px; height: 40px; border-radius: 3px; background-color: #C0A050; margin-right: 14px; }
+.card-body { flex-direction: column; flex: 1; }
+.card-title { font-size: 26px; color: #8A5A20; margin-bottom: 8px; }
+.card-line { font-size: 24px; color: #5A4632; line-height: 34px; }
+.row { flex-direction: row; align-items: flex-start; border-radius: 12px; padding: 6px 8px; margin-bottom: 2px; }
+.dot { width: 14px; height: 14px; border-radius: 7px; margin-top: 8px; margin-right: 12px; }
+.row-text { flex-direction: column; flex: 1; }
+.row-name { font-size: 24px; }
+.row-desc { font-size: 20px; color: #6A5942; line-height: 28px; }
+.foot-space { width: 390px; height: 24px; }
+</style>

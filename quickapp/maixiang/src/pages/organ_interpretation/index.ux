@@ -1,0 +1,181 @@
+<template>
+  <stack class="root">
+    <image class="bg" src="/common/maixiang/list1.png"></image>
+
+    <div class="empty" if="{{ !hasData }}">
+      <text class="empty-t">暂无脉象数据</text>
+    </div>
+
+    <scroll class="scroll" if="{{ hasData }}" scroll-y="true">
+      <div class="content">
+        <div class="head">
+          <stack class="arc-box">
+            <progress class="arc-bg" type="arc" percent="100"></progress>
+            <progress class="arc-fg" type="arc" percent="{{ pct }}" style="color: {{ gauge }};"></progress>
+          </stack>
+          <text class="arc-score" style="color: {{ gauge }};">{{ scoreText }}</text>
+          <text class="arc-name">{{ nameLine }}</text>
+        </div>
+
+        <div class="card" for="{{ (i, s) in sections }}" tid="i">
+          <div class="card-bar"></div>
+          <div class="card-body">
+            <text class="card-title">{{ s.title }}</text>
+            <text class="card-line">{{ s.body }}</text>
+          </div>
+        </div>
+        <text class="foot-space"> </text>
+      </div>
+    </scroll>
+  </stack>
+</template>
+
+<script>
+import { getText } from '../../utils/strings'
+import { relativeLine } from '../../utils/relative_text'
+
+const ORGAN_KEYS = ['heart', 'liver', 'spleen', 'lung', 'kidney'];
+// 五脏 → 可用于"较你常态"的基线维度（脾/肾无稳定基线的不显示）
+const ORGAN_RELATIVE_DIM = { heart: 'rate', liver: 'tension', lung: 'rsa', kidney: 'rsa' };
+
+function gaugeColor(score) {
+  if (score >= 7) return '#C09040';
+  if (score >= 5) return '#B8860B';
+  if (score >= 3) return '#B5651D';
+  return '#A23B2E';
+}
+
+function dimOf(dims, name) { return dims[name] || { score: 0, category: 'unknown' }; }
+
+function getOrganReading(key, dims, organ) {
+  const rate = dimOf(dims, 'rate');
+  const rhythm = dimOf(dims, 'rhythm');
+  const strength = dimOf(dims, 'strength');
+  const width = dimOf(dims, 'width');
+  const tension = dimOf(dims, 'tension');
+  const recovery = dimOf(dims, 'rsa');
+  const tense = tension.category === 'xian' || tension.category === 'pian_xian';
+  const weak = strength.category === 'xu' || strength.category === 'pian_xu';
+  const slowRecovery = recovery.category === 'slow' || recovery.category === 'settling';
+  let reading = organ.desc || '';
+
+  if (key === 'heart') {
+    reading = rhythm.score >= 7 && rate.score >= 7
+      ? getText('organ_reading_heart_balanced')
+      : rhythm.score < rate.score
+        ? getText('organ_reading_heart_rhythm')
+        : (rate.category === 'pian_shuo' || rate.category === 'shuo')
+          ? getText('organ_reading_heart_fast')
+          : getText('organ_reading_heart_slow');
+  } else if (key === 'liver') {
+    reading = tense && !slowRecovery
+      ? getText('organ_reading_liver_release')
+      : (tense && slowRecovery)
+        ? getText('organ_reading_liver_tense')
+        : getText('organ_reading_liver_balanced');
+  } else if (key === 'spleen') {
+    reading = weak
+      ? getText('organ_reading_spleen_weak')
+      : (width.category === 'hong' || width.category === 'pian_hong')
+        ? getText('organ_reading_spleen_active')
+        : getText('organ_reading_spleen_balanced');
+  } else if (key === 'lung') {
+    reading = rhythm.score >= 7 && !slowRecovery
+      ? getText('organ_reading_lung_balanced')
+      : (weak || slowRecovery)
+        ? getText('organ_reading_lung_slow')
+        : getText('organ_reading_lung_variable');
+  } else if (key === 'kidney') {
+    reading = weak && slowRecovery
+      ? getText('organ_reading_kidney_both_low')
+      : weak
+        ? getText('organ_reading_kidney_weak')
+        : slowRecovery
+          ? getText('organ_reading_kidney_slow')
+          : getText('organ_reading_kidney_balanced');
+  }
+  return { theory: getText('organ_theory_' + key), reading: reading };
+}
+
+function pair(a1, a2) { return [getText(a1), getText(a2)].filter(Boolean); }
+
+function getSuggestions(key, statusKey, dims) {
+  const tension = dimOf(dims, 'tension');
+  const strength = dimOf(dims, 'strength');
+  const recovery = dimOf(dims, 'rsa');
+  const tense = tension.category === 'xian' || tension.category === 'pian_xian';
+  const weak = strength.category === 'xu' || strength.category === 'pian_xu';
+  const slowRecovery = recovery.category === 'slow' || recovery.category === 'settling';
+
+  if (key === 'heart') return statusKey === 'he' ? pair('organ_care_heart_steady_1', 'organ_care_heart_steady_2') : pair('organ_care_heart_low_1', 'organ_care_heart_low_2');
+  if (key === 'liver') return tense ? pair('organ_care_liver_tense_1', 'organ_care_liver_tense_2') : pair('organ_care_liver_steady_1', 'organ_care_liver_steady_2');
+  if (key === 'spleen') return weak ? pair('organ_care_spleen_weak_1', 'organ_care_spleen_weak_2') : pair('organ_care_spleen_steady_1', 'organ_care_spleen_steady_2');
+  if (key === 'lung') return (slowRecovery || weak) ? pair('organ_care_lung_low_1', 'organ_care_lung_low_2') : pair('organ_care_lung_steady_1', 'organ_care_lung_steady_2');
+  if (key === 'kidney') return (weak || slowRecovery) ? pair('organ_care_kidney_low_1', 'organ_care_kidney_low_2') : pair('organ_care_kidney_steady_1', 'organ_care_kidney_steady_2');
+  return [];
+}
+
+export default {
+  public: { key: 'heart' },
+  private: {
+    hasData: false, pct: 0, scoreText: '0.0', gauge: '#B8860B', nameLine: '', sections: []
+  },
+
+  onInit() {
+    const diag = this.$app.$def.globalData.lastDiagnosis;
+    const metrics = this.$app.$def.globalData.lastMetrics || {};
+    const organKey = ORGAN_KEYS.indexOf(this.key) >= 0 ? this.key : 'heart';
+    if (!diag || !diag.organAnalysis) return;
+
+    let organ = null;
+    for (let i = 0; i < diag.organAnalysis.length; i++) {
+      if (diag.organAnalysis[i].organKey === organKey) { organ = diag.organAnalysis[i]; break; }
+    }
+    if (!organ) return;
+
+    const dims = diag.dimensions || {};
+    this.hasData = true;
+    this.scoreText = (organ.score || 0).toFixed(1);
+    this.gauge = gaugeColor(organ.score || 0);
+    this.pct = Math.max(0, Math.min(100, Math.round(((organ.score || 0) / 10) * 100)));
+    this.nameLine = organ.organ + ' · ' + organ.status;
+
+    const reading = getOrganReading(organKey, dims, organ);
+    const secs = [];
+    secs.push({ title: getText('organ_section_theory'), body: this.bullets([reading.theory]) });
+    secs.push({ title: getText('organ_section_reading'), body: this.bullets([reading.reading]) });
+    const relKey = ORGAN_RELATIVE_DIM[organKey];
+    const relLine = relKey ? relativeLine(relKey, metrics) : null;
+    if (relLine) secs.push({ title: getText('relative_section_title'), body: this.bullets([relLine]) });
+    secs.push({ title: getText('organ_section_care'), body: this.bullets(getSuggestions(organKey, organ.statusKey, dims)) });
+    this.sections = secs;
+  },
+
+  bullets(lines) {
+    const arr = (lines || []).filter(function (s) { return s; });
+    if (!arr.length) return '·';
+    return arr.map(function (l) { return '· ' + l; }).join('\n');
+  }
+}
+</script>
+
+<style>
+.root { width: 480px; height: 480px; }
+.bg { position: absolute; left: 0px; top: 0px; width: 480px; height: 480px; }
+.empty { width: 480px; height: 480px; align-items: center; justify-content: center; }
+.empty-t { font-size: 32px; color: #8A5A20; }
+.scroll { width: 480px; height: 480px; flex-direction: column; }
+.content { width: 480px; flex-direction: column; align-items: center; }
+.head { position: relative; width: 480px; height: 196px; overflow: hidden; }
+.arc-box { position: absolute; left: 5px; top: 12px; width: 470px; height: 470px; }
+.arc-bg { width: 470px; height: 470px; color: #B6A98C; stroke-width: 20px; start-angle: 290deg; total-angle: 140deg; }
+.arc-fg { width: 470px; height: 470px; stroke-width: 20px; start-angle: 290deg; total-angle: 140deg; }
+.arc-score { position: absolute; left: 0px; top: 74px; width: 480px; text-align: center; font-size: 64px; }
+.arc-name { position: absolute; left: 40px; top: 150px; width: 400px; text-align: center; font-size: 26px; color: #5A4632; }
+.card { width: 390px; flex-direction: row; align-items: flex-start; background-color: #D8CCB2; border-radius: 22px; padding: 16px 18px; margin-top: 8px; }
+.card-bar { width: 6px; height: 40px; border-radius: 3px; background-color: #C0A050; margin-right: 14px; }
+.card-body { flex-direction: column; flex: 1; }
+.card-title { font-size: 26px; color: #8A5A20; margin-bottom: 8px; }
+.card-line { font-size: 24px; color: #5A4632; line-height: 34px; }
+.foot-space { width: 390px; height: 24px; }
+</style>

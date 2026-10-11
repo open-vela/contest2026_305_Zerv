@@ -20,13 +20,22 @@
         <div class="wave-card">
           <text class="wave-label">脉形</text>
           <pulse-wave if="{{ waveReady }}" pulse="{{ pulseType }}"></pulse-wave>
-          <text class="wave-hint">{{ pulseDescription }}</text>
         </div>
 
-        <div class="constitution-card">
+        <div class="pulse-detail-card">
+          <div class="pulse-detail-body">
+            <text class="pulse-detail-name">{{ pulseName }}</text>
+            <text class="pulse-detail-desc">{{ pulseDescription }}</text>
+          </div>
+        </div>
+
+        <div class="constitution-card" onclick="goConstitution">
           <div class="gold-mark"></div>
           <div class="constitution-body">
-            <text class="section-eyebrow">体质倾向</text>
+            <div class="constitution-head">
+              <text class="section-eyebrow">体质倾向</text>
+              <text class="constitution-more">详情 ></text>
+            </div>
             <text class="constitution-name">{{ constitutionName }}</text>
             <text class="constitution-desc">{{ constitutionDescription }}</text>
           </div>
@@ -50,6 +59,7 @@
 
         <input class="main-button" type="button" value="把 脉" onclick="goMeasurement" />
         <input class="sub-button" type="button" value="养生建议" if="{{ hasData }}" onclick="goRecommendations" />
+        <input class="sub-button" type="button" value="脉象档案" onclick="goTrend" />
         <input class="sub-button" type="button" value="脉象原理" onclick="goTheory" />
 
         <div class="disclaimer-card">
@@ -68,6 +78,7 @@
 import router from '@system.router'
 import { HrvStorageManager } from '../../utils/hrv_storage_manager'
 import { diagnosePulse } from '../../utils/pulse_diagnosis'
+import { ensureBaseline } from '../../utils/baseline_manager'
 
 export default {
   private: {
@@ -148,24 +159,31 @@ export default {
           this._loadingDiagnosis = false;
           return;
         }
-        try {
-          const globalData = this.$app.$def.globalData;
-          let diagnosis = null;
-          if (globalData.lastDiagnosis && globalData.lastDiagnosisTs === latest.timestamp) {
-            diagnosis = globalData.lastDiagnosis;
-            console.log('[HOME][09] diagnosis cache hit');
-          } else {
-            diagnosis = diagnosePulse(latest.metrics);
-            globalData.lastDiagnosis = diagnosis;
-            globalData.lastDiagnosisTs = latest.timestamp;
-            console.log('[HOME][10] diagnosis calculated');
+        // 缓存本次原始 metrics，供解读页 / 体质页计算"较你常态"（与诊断结果同源，避免二次读盘）。
+        this.$app.$def.globalData.lastMetrics = latest.metrics;
+        // 预热会话基线（异步读盘），完成后再计算规则结果；
+        // 无历史/样本<5 → 基线为 null → w=0，行为与旧版一致。
+        ensureBaseline(() => {
+          if (loadToken !== this._loadToken) { this._loadingDiagnosis = false; return; }
+          try {
+            const globalData = this.$app.$def.globalData;
+            let diagnosis = null;
+            if (globalData.lastDiagnosis && globalData.lastDiagnosisTs === latest.timestamp) {
+              diagnosis = globalData.lastDiagnosis;
+              console.log('[HOME][09] diagnosis cache hit');
+            } else {
+              diagnosis = diagnosePulse(latest.metrics);
+              globalData.lastDiagnosis = diagnosis;
+              globalData.lastDiagnosisTs = latest.timestamp;
+              console.log('[HOME][10] diagnosis calculated');
+            }
+            this._applyDiagnosis(diagnosis);
+          } catch (error) {
+            console.log('[HOME][11] diagnosis failed=' + error);
+            if (!this.hasData) this._showEmptyState();
           }
-          this._applyDiagnosis(diagnosis);
-        } catch (error) {
-          console.log('[HOME][11] diagnosis failed=' + error);
-          if (!this.hasData) this._showEmptyState();
-        }
-        this._loadingDiagnosis = false;
+          this._loadingDiagnosis = false;
+        });
       });
     });
   },
@@ -266,6 +284,14 @@ export default {
     this._go('pages/rec_showcase', 'recommendations');
   },
 
+  goConstitution() {
+    this._go('pages/constitution_showcase', 'constitution');
+  },
+
+  goTrend() {
+    this._go('pages/trend', 'trend');
+  },
+
   goTheory() {
     this._go('pages/pulse_theory', 'theory');
   },
@@ -348,7 +374,7 @@ export default {
 
 .wave-card {
   width: 390px;
-  height: 190px;
+  height: 168px;
   flex-direction: column;
   align-items: center;
   background-color: #CEC1A5;
@@ -365,21 +391,57 @@ export default {
   color: #82653C;
 }
 
-.wave-hint {
+.wave-desc-box {
   width: 320px;
-  height: 30px;
-  text-align: center;
-  font-size: 20px;
-  color: #725A38;
-  margin-top: 8px;
+  flex-direction: column;
+  padding-left: 18px;
+  margin-top: 12px;
 }
 
+.wave-desc {
+  width: 290px;
+  font-size: 21px;
+  color: #5A4632;
+}
+
+/* 脉形详情：独立小卡片（结构同体质卡，实测可换行） */
+.pulse-detail-card {
+  width: 390px;
+  align-items: center;
+  background-color: #CEC1A5;
+  border-radius: 24px;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  margin-top: 12px;
+}
+
+.pulse-detail-body {
+  width: 320px;
+  flex-direction: column;
+  padding-left: 18px;
+}
+
+.pulse-detail-name {
+  width: 290px;
+  font-size: 26px;
+  color: #8A5A20;
+  margin-bottom: 6px;
+}
+
+.pulse-detail-desc {
+  width: 290px;
+  font-size: 21px;
+  color: #5A4632;
+}
+
+/* 不写死高度：卡片由内容撑开，体质描述换行后自动增高 */
 .constitution-card {
   width: 390px;
-  height: 160px;
   align-items: center;
   background-color: #D8CCB2;
   border-radius: 24px;
+  padding-top: 18px;
+  padding-bottom: 18px;
   padding-left: 22px;
   margin-top: 18px;
 }
@@ -393,30 +455,40 @@ export default {
 
 .constitution-body {
   width: 320px;
-  height: 125px;
   flex-direction: column;
   padding-left: 18px;
 }
 
-.section-eyebrow {
+.constitution-head {
   width: 290px;
-  height: 28px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.section-eyebrow {
   font-size: 21px;
   color: #947D5A;
 }
 
-.constitution-name {
-  width: 290px;
-  height: 52px;
-  font-size: 40px;
-  color: #8A5A20;
+.constitution-more {
+  font-size: 20px;
+  color: #B07A24;
 }
 
+.constitution-name {
+  width: 290px;
+  font-size: 40px;
+  color: #8A5A20;
+  margin-top: 2px;
+}
+
+/* 只约束宽度、不约束高度：长文案自然换行并把卡片撑高 */
 .constitution-desc {
   width: 290px;
-  height: 45px;
   font-size: 19px;
   color: #675037;
+  margin-top: 6px;
 }
 
 .data-card {
