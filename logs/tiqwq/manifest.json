@@ -168,7 +168,22 @@
         "main_size": 3647105,
         "captured_at": "2026-09-20T15:01:59.428124+00:00"
       }
+    },
+    {
+      "session_id": "dda835fe-614c-44bd-b853-8f8a8c658cdf",
+      "tool": "qoder",
+      "started_at": "2026-10-11T16:18:19.587293Z",
+      "last_event_at": "2026-10-19T02:22:00.0266488Z",
+      "event_count": 2017,
+      "file_path": "logs/tiqwq/2026-10-11/qoder__dda835fe-614c-44bd-b853-8f8a8c658cdf.jsonl",
+      "collection_mode": "backfill-sqlite",
+      "health": "ok",
+      "source_integrity": {
+        "main_sha256": "1421d92d77e44e61c6cd176202be209965cf3dd4bb8e4be33ef1476964c5082a",
+        "main_size": 5426729,
+        "captured_at": "2026-11-02T05:40:23.542550+00:00"
+      }
     }
   ],
-  "updated_at": "2026-09-20T15:01:59.944710+00:00"
+  "updated_at": "2026-11-02T05:40:23.604550+00:00"
 }
